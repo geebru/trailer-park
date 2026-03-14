@@ -1,0 +1,107 @@
+# =============================================================================
+# fetch-trailer.conf
+# Configuration for fetch-trailer.sh and fetch-trailer-manual.sh
+#
+# This file is sourced by both scripts at startup. Edit values here —
+# the scripts themselves never need to be modified for configuration changes.
+# =============================================================================
+
+# TMDB API Read Access Token — get one free at https://www.themoviedb.org/settings/api
+TMDB_API_KEY="YOUR_TMDB_API_KEY_HERE"
+
+# Optional subfolder inside the media folder to place the trailer in.
+# Leave empty to place the trailer directly in the media folder.
+# Example: TRAILER_SUBFOLDER="trailers" → placed in Movie (Year)/trailers/
+TRAILER_SUBFOLDER=""
+
+# Trailer filename template. Use {title} and {year} as placeholders.
+# Examples:
+#   "{title} ({year}).trailer.mkv"   → Parasite (2019).trailer.mkv
+#   "{title} ({year})-trailer.mkv"   → Parasite (2019)-trailer.mkv
+#   "trailer.mkv"                    → trailer.mkv  (fixed name)
+TRAILER_FILENAME="{title} ({year}).trailer.mkv"
+
+# Preferred terms in trailer title (checked in order — first match wins).
+# Case-insensitive. Script picks the first non-excluded video whose name
+# contains one of these terms. Applied to both Radarr and Sonarr unless
+# per-source terms are also defined below.
+PREFERRED_TERMS=(
+    "Official Trailer"
+    "Official US Trailer"
+    "Main Trailer"
+    "Trailer"
+)
+
+# Excluded terms — any video whose name matches one of these is skipped entirely.
+# Case-insensitive. Applied to both Radarr and Sonarr unless per-source terms
+# are also defined below.
+EXCLUDED_TERMS=(
+    "Teaser"
+    "Clip"
+    "Featurette"
+    "Behind the Scenes"
+    "Bloopers"
+    "Opening"
+    "Deleted Scene"
+    "Interview"
+    "Promo"
+    "Sneak Peek"
+    "Music Video"
+    "Announcement"
+    "Recap"
+    "Extended Look"
+    "First Look"
+)
+
+# Radarr-specific additional terms, merged with the globals above at runtime.
+# RADARR_PREFERRED_TERMS prepend to PREFERRED_TERMS (checked first).
+# RADARR_EXCLUDED_TERMS append to EXCLUDED_TERMS.
+# Leave empty to use globals only.
+RADARR_PREFERRED_TERMS=()
+RADARR_EXCLUDED_TERMS=()
+
+# Sonarr-specific additional terms, merged with the globals above at runtime.
+# SONARR_PREFERRED_TERMS prepend to PREFERRED_TERMS (checked first).
+# SONARR_EXCLUDED_TERMS append to EXCLUDED_TERMS.
+# Leave empty to use globals only.
+SONARR_PREFERRED_TERMS=()
+SONARR_EXCLUDED_TERMS=()
+
+# Path to a yt-dlp cookies.txt file for age-restricted YouTube videos.
+# Export from your browser using the "Get cookies.txt LOCALLY" extension.
+# Leave empty to skip cookie auth.
+YTDLP_COOKIES_FILE=""
+
+# Download English subtitles as a sidecar .srt file when the media's original
+# language is non-English. Named e.g. "Parasite (2019).trailer.en.srt".
+# yt-dlp will attempt auto-generated captions if manual subs are unavailable.
+# Set to false to skip entirely.
+DOWNLOAD_SUBTITLES=true
+
+# Optional extra yt-dlp arguments (e.g. "--proxy socks5://...")
+YTDLP_EXTRA_ARGS=""
+
+# Skip the entire script if any trailer file already exists in the media folder.
+# Keeps automation scoped to new media only.
+SKIP_IF_EXISTS=true
+
+# Discord webhook URL for download notifications.
+# Leave empty to disable. Dry-run never sends notifications.
+# Get yours from: Server Settings → Integrations → Webhooks
+DISCORD_WEBHOOK_URL=""
+
+# Minimum seconds to wait between TMDB API calls across concurrent imports.
+# Each invocation checks how long ago the last run made its TMDB calls and
+# waits if needed. 60s is safe for typical bulk import scenarios.
+TMDB_RATE_DELAY=60
+
+# Directory for the TMDB rate-limit timestamp file.
+# Must be writable by the container user.
+RATE_LIMIT_DIR="/config/scripts/tmp"
+
+# Log file path. Set to "" to disable file logging (stderr only).
+LOG_FILE="/config/scripts/fetch-trailer.log"
+
+# Binary paths — override if yt-dlp or jq are not in PATH.
+YT_DLP_BIN="yt-dlp"
+JQ_BIN="jq"
