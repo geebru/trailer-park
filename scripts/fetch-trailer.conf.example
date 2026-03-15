@@ -92,8 +92,8 @@ DISCORD_WEBHOOK_URL=""
 
 # Minimum seconds to wait between TMDB API calls across concurrent imports.
 # Each invocation checks how long ago the last run made its TMDB calls and
-# waits if needed. 60s is safe for typical bulk import scenarios.
-TMDB_RATE_DELAY=60
+# waits if needed. 30s is safe for typical bulk import scenarios.
+TMDB_RATE_DELAY=30
 
 # Directory for the TMDB rate-limit timestamp file.
 # Must be writable by the container user.
