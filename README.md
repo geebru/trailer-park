@@ -20,7 +20,7 @@ Downloads trailers for movies and TV shows via TMDB and yt-dlp, triggered automa
 | `fetch-trailer-manual.sh` | Manual script for adding or replacing individual trailers |
 | `install_dependencies.sh` | Container init script that installs `jq` and `yt-dlp` on startup |
 
-All four files must live in the same directory.
+Each Arr needs its own set of these 4 files.
 
 ---
 
@@ -34,24 +34,25 @@ All four files must live in the same directory.
 
 ## Dependencies
 
-Both Linuxserver.io Radarr and Sonarr images run Alpine Linux. Dependencies must be installed inside each container on startup using a custom init script.
+Both Linuxserver.io Radarr and Sonarr images run Alpine Linux and allow custom initialization dependencies. This allows us to install some new tools for them to use for trailer fetching. Dependencies must be installed inside each container on startup using the custom init script.
 
-**1. Create the required directories:**
+1. Create the required directories:
 ```bash
-mkdir -p /mnt/user/appdata/{radarr,sonarr}/{cont-init.d,scripts}
+mkdir -p /path/to/your/appdata/{radarr,sonarr}/{cont-init.d,scripts}
 ```
+This will create the required on-init and scripts folders needed in each Arr.
 
-**2. Add `install_dependencies.sh` to each `cont-init.d` folder.**
+2. Add `install_dependencies.sh` to each `cont-init.d` folder.
 
-**3. Update your Docker Compose volume mounts:**
+3. Update your Docker Compose volume mounts:**
 
 Radarr:
 ```yaml
-- /mnt/user/appdata/radarr/cont-init.d:/custom-cont-init.d
+- /path/to/your/appdata/radarr/cont-init.d:/custom-cont-init.d
 ```
 Sonarr:
 ```yaml
-- /mnt/user/appdata/sonarr/cont-init.d:/custom-cont-init.d
+- /path/to/your/appdata/sonarr/cont-init.d:/custom-cont-init.d
 ```
 
 `jq` and `yt-dlp` will be available in the container's PATH automatically on every container start.
@@ -62,8 +63,8 @@ Sonarr:
 
 1. Place the remaining fetch-trailer files into the scripts directory for each app:
 ```
-/mnt/user/appdata/radarr/scripts/
-/mnt/user/appdata/sonarr/scripts/
+/path/to/your/appdata/radarr/scripts/
+/path/to/your/appdata/sonarr/scripts/
 ```
 
 2. Add your TMDB API key in `fetch-trailer.conf` and make any other desired config changes.
@@ -93,29 +94,9 @@ Sonarr's **On Series Add** fires once when a show is added, not once per episode
 
 Use the **Test** button to verify the script is found and executable. A green checkmark confirms the connection is working.
 
----
+## Manual Usage and Dry Runs
 
-## Dry Run
-
-Before running in automation, test selection logic without downloading anything:
-
-```bash
-# From inside the Radarr or Sonarr container console
-radarr_eventtype="Download" \
-radarr_movie_title="Parasite" \
-radarr_movie_year="2019" \
-radarr_movie_tmdbid="496243" \
-radarr_movie_path="/data/media/movies/Parasite (2019)" \
-bash /config/scripts/fetch-trailer.sh --dry-run
-```
-
-The dry-run report shows all available trailers, which would be selected, which are excluded, and the output path — without writing any files or sending Discord notifications.
-
----
-
-## Manual Usage
-
-Run from inside the container console (Radarr or Sonarr):
+Run from inside the container console (Radarr or Sonarr) for media _you already have_:
 
 ```bash
 # Auto — TMDB lookup, same selection logic as automated runs
