@@ -508,6 +508,8 @@ download_trailer() {
         fi
 
         info "Fetching English subtitles for non-English media ($orig_lang)..."
+        # Subtitle fetch is best-effort — not all videos have subs available.
+        # Failure here is non-fatal; the trailer download proceeds regardless.
         "$YT_DLP_BIN" "${ytdlp_sub_args[@]}" "$url" 2>/dev/null || true
 
         sub_file="$(find "$workdir" -maxdepth 1 -name ".trailer-sub-${yt_key}.*.srt" 2>/dev/null | head -1)"
@@ -519,6 +521,10 @@ download_trailer() {
     fi
 
     if [[ -n "$YTDLP_EXTRA_ARGS" ]]; then
+        # Word splitting is intentional here — YTDLP_EXTRA_ARGS is a
+        # space-separated list of flags (e.g. "--proxy socks5://...").
+        # Do not put secrets in this value as it may be visible
+        # in process listings.
         # shellcheck disable=SC2206
         ytdlp_args+=($YTDLP_EXTRA_ARGS)
     fi
