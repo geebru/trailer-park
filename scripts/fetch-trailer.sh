@@ -384,23 +384,25 @@ pick_best_trailer() {
         info "No preferred-term match in [Subtitled] pool — continuing"
     fi
 
-    # Second pass: original-language candidates
-    local orig_pool
-    orig_pool="$(echo "$candidates" | "$JQ_BIN" -c '[.[] | select(.is_orig_lang == true)]')"
-    local orig_count
-    orig_count="$(echo "$orig_pool" | "$JQ_BIN" 'length')"
+    # Second pass: original-language candidates (non-English media only)
+    if [[ -n "$orig_lang" && "$orig_lang" != "en" ]]; then
+        local orig_pool
+        orig_pool="$(echo "$candidates" | "$JQ_BIN" -c '[.[] | select(.is_orig_lang == true)]')"
+        local orig_count
+        orig_count="$(echo "$orig_pool" | "$JQ_BIN" 'length')"
 
-    if [[ "$orig_count" -gt 0 ]]; then
-        info "Trying original-language pool ($orig_count candidates)"
-        local result
-        result="$(_try_pick "$orig_pool")"
-        if [[ -n "$result" ]]; then
-            echo "$result"
-            return 0
+        if [[ "$orig_count" -gt 0 ]]; then
+            info "Trying original-language pool ($orig_count candidates)"
+            local result
+            result="$(_try_pick "$orig_pool")"
+            if [[ -n "$result" ]]; then
+                echo "$result"
+                return 0
+            fi
+            info "No match in original-language pool — falling back to full pool"
+        else
+            info "No original-language trailers found on TMDB — using full pool"
         fi
-        info "No match in original-language pool — falling back to full pool"
-    else
-        info "No original-language trailers found — using full pool"
     fi
 
     # Third pass: full pool
