@@ -221,9 +221,8 @@ elif [ -n "${sonarr_series_title:-}" ]; then
   fi
 
 else
-  log "ERROR: No flags or Radarr/Sonarr environment variables detected"
-  log "Usage: trailarr-parrk.sh [--movie|--series \"Title\"] [--id <tmdb_id>] [--path \"/path\"] [--yt-id <yt_id>] [--dry-run]"
-  exit 1
+  log "No flags or Radarr/Sonarr environment variables detected — nothing to do"
+  exit 0
 fi
 
 log "Title:     $TITLE"
