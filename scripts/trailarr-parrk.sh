@@ -31,7 +31,11 @@ source "$CONFIG_FILE"
 # =====================================================================
 
 log() {
-  echo "[Trailarr Parrk] $1"
+  if [ "${DRY_RUN:-false}" = "true" ]; then
+    echo "[Trailarr Parrk] [DRY RUN] $1"
+  else
+    echo "[Trailarr Parrk] $1"
+  fi
 }
 
 # Wraps any command — prints it in dry-run mode, executes it otherwise
@@ -56,7 +60,7 @@ url_encode() {
 notify_discord() {
   [ -z "${DISCORD_WEBHOOK:-}" ] && return
   local message="🎬 **Trailarr Parrk**\n$1"
-  [ "${DRY_RUN:-false}" = "true" ] && log "[DRY RUN] Discord notification: $message" && return
+  [ "${DRY_RUN:-false}" = "true" ] && return
   curl -sf -X POST "$DISCORD_WEBHOOK" \
     -H "Content-Type: application/json" \
     -d "{\"content\": \"$message\"}" >/dev/null \
@@ -357,7 +361,7 @@ for (( i=0; i<VIDEO_COUNT; i++ )); do
   for term in "${EXCLUDED_TERMS[@]}"; do
     if [[ "$VIDEO_NAME" == *"$term"* ]]; then
       local_skip=true
-      EXCLUDED_HITS+=("$(echo "$ITEM" | jq -r '.name')")
+      EXCLUDED_HITS+=("$(echo "$ITEM" | jq -r '.name')|$(echo "$ITEM" | jq -r '.key')")
       break
     fi
   done
@@ -377,9 +381,12 @@ done
 
 if [ -z "$BEST_KEY" ]; then
   if [ "${#EXCLUDED_HITS[@]}" -gt 0 ]; then
-    log "The following were skipped due to excluded terms:"
+    log "Trailers were available but excluded by your terms (use --yt-id to grab one manually):"
     for (( i=0; i<${#EXCLUDED_HITS[@]} && i<3; i++ )); do
-      log "  - ${EXCLUDED_HITS[$i]}"
+      local_hit_name="${EXCLUDED_HITS[$i]%%|*}"
+      local_hit_key="${EXCLUDED_HITS[$i]##*|}"
+      log "  - $local_hit_name  (--yt-id $local_hit_key)"
+      log "    https://www.youtube.com/watch?v=$local_hit_key"
     done
   fi
   notify_discord "**$TITLE (${YEAR:-unknown})**\n⚠️ No trailer passed filtering (${VIDEO_COUNT} videos checked)"
