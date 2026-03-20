@@ -335,22 +335,20 @@ log "Found $VIDEO_COUNT video(s) on TMDB"
 # =====================================================================
 # Trailer Selection
 # Scoring priority:
-#   +60  — matches original language
-#   +40  — English fallback
-#   +20  — each matched preferred term in the name
-#   skip — any excluded term in name, or no preferred term match
+#   +10  — each matched PREFERRED term in the name
+#   skip — any EXCLUDED term in name (logged if no PREFERRED matches)
 # =====================================================================
 
 BEST_SCORE=-1
 BEST_KEY=""
 BEST_NAME=""
+EXCLUDED_HITS=()
 
 for (( i=0; i<VIDEO_COUNT; i++ )); do
   ITEM=$(echo "$VIDEOS" | jq ".results[$i]")
 
   VIDEO_TYPE=$(echo "$ITEM" | jq -r '.type')
   VIDEO_NAME=$(echo "$ITEM" | jq -r '.name' | tr '[:upper:]' '[:lower:]')
-  VIDEO_LANG=$(echo "$ITEM" | jq -r '.iso_639_1')
   VIDEO_KEY=$(echo "$ITEM"  | jq -r '.key')
 
   [ "$VIDEO_TYPE" != "Trailer" ] && continue
@@ -359,29 +357,15 @@ for (( i=0; i<VIDEO_COUNT; i++ )); do
   for term in "${EXCLUDED_TERMS[@]}"; do
     if [[ "$VIDEO_NAME" == *"$term"* ]]; then
       local_skip=true
+      EXCLUDED_HITS+=("$(echo "$ITEM" | jq -r '.name')")
       break
     fi
   done
   [ "$local_skip" = true ] && continue
 
-  if [ "${#PREFERRED_TERMS[@]}" -gt 0 ]; then
-    local_match=false
-    for term in "${PREFERRED_TERMS[@]}"; do
-      [[ "$VIDEO_NAME" == *"$term"* ]] && local_match=true && break
-    done
-    [ "$local_match" = false ] && continue
-  fi
-
   SCORE=0
-
-  if [ "$VIDEO_LANG" = "$ORIG_LANG" ]; then
-    SCORE=$(( SCORE + 60 ))
-  elif [ "$VIDEO_LANG" = "en" ]; then
-    SCORE=$(( SCORE + 40 ))
-  fi
-
   for term in "${PREFERRED_TERMS[@]}"; do
-    [[ "$VIDEO_NAME" == *"$term"* ]] && SCORE=$(( SCORE + 20 ))
+    [[ "$VIDEO_NAME" == *"$term"* ]] && SCORE=$(( SCORE + 10 ))
   done
 
   if (( SCORE > BEST_SCORE )); then
@@ -392,6 +376,12 @@ for (( i=0; i<VIDEO_COUNT; i++ )); do
 done
 
 if [ -z "$BEST_KEY" ]; then
+  if [ "${#EXCLUDED_HITS[@]}" -gt 0 ]; then
+    log "The following were skipped due to excluded terms:"
+    for (( i=0; i<${#EXCLUDED_HITS[@]} && i<3; i++ )); do
+      log "  - ${EXCLUDED_HITS[$i]}"
+    done
+  fi
   notify_discord "**$TITLE (${YEAR:-unknown})**\n⚠️ No trailer passed filtering (${VIDEO_COUNT} videos checked)"
   log "No suitable trailer found after filtering"
   exit 0
