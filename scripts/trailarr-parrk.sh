@@ -40,7 +40,7 @@ run_cmd() {
     echo "[Trailarr Parrk] [DRY RUN] $*"
   else
     "$@" || {
-      notify_discord "⚠️ **$TITLE (${YEAR:-unknown})** — trailer download failed"
+      notify_discord "**$TITLE (${YEAR:-unknown})**\n⚠️ Trailer download failed"
       log "ERROR: Download failed"
       exit 1
     }
@@ -55,7 +55,7 @@ url_encode() {
 # Sends a message to Discord via webhook — silent no-op if not configured
 notify_discord() {
   [ -z "${DISCORD_WEBHOOK:-}" ] && return
-  local message="🎬 **Trailarr Parrk** — $1"
+  local message="🎬 **Trailarr Parrk**\n$1"
   [ "${DRY_RUN:-false}" = "true" ] && log "[DRY RUN] Discord notification: $message" && return
   curl -sf -X POST "$DISCORD_WEBHOOK" \
     -H "Content-Type: application/json" \
@@ -303,7 +303,7 @@ if [ -n "${ARG_YT_ID:-}" ]; then
   log "Downloading..."
   run_cmd yt-dlp "${YTDLP_OPTS[@]}" "$YOUTUBE_URL"
 
-  notify_discord "✅ **$TITLE (${YEAR:-unknown})** — trailer manually replaced\n$YOUTUBE_URL"
+  notify_discord "**$TITLE (${YEAR:-unknown})**\n✅ Trailer manually replaced!\n$YOUTUBE_URL"
   log "Done — trailer saved to: $OUTPUT_FILE"
   exit 0
 fi
@@ -325,7 +325,7 @@ VIDEOS=$(tmdb_call "https://api.themoviedb.org/3/${MEDIA_TYPE}/${TMDB_ID}/videos
 
 VIDEO_COUNT=$(echo "$VIDEOS" | jq '.results | length // 0')
 if [ "$VIDEO_COUNT" -eq 0 ]; then
-  notify_discord "⚠️ **$TITLE (${YEAR:-unknown})** — no trailers found on TMDB"
+  notify_discord "**$TITLE (${YEAR:-unknown})**\n⚠️ No trailers found on TMDB"
   log "No videos found on TMDB for this title"
   exit 0
 fi
@@ -392,7 +392,7 @@ for (( i=0; i<VIDEO_COUNT; i++ )); do
 done
 
 if [ -z "$BEST_KEY" ]; then
-  notify_discord "⚠️ **$TITLE (${YEAR:-unknown})** — no trailer passed filtering (${VIDEO_COUNT} videos checked)"
+  notify_discord "**$TITLE (${YEAR:-unknown})**\n⚠️ No trailer passed filtering (${VIDEO_COUNT} videos checked)"
   log "No suitable trailer found after filtering"
   exit 0
 fi
@@ -416,5 +416,5 @@ YTDLP_OPTS=(
 log "Downloading..."
 run_cmd yt-dlp "${YTDLP_OPTS[@]}" "$YOUTUBE_URL"
 
-notify_discord "✅ **$TITLE (${YEAR:-unknown})** — trailer downloaded (score: $BEST_SCORE)\n$YOUTUBE_URL"
+notify_discord "**$TITLE (${YEAR:-unknown})**\n✅ Trailer downloaded (score: $BEST_SCORE)\n$YOUTUBE_URL"
 log "Done — trailer saved to: $OUTPUT_FILE"
