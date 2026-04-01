@@ -7,7 +7,7 @@ Downloads trailers for movies and TV shows via TMDB and yt-dlp. Triggered automa
 ## Requirements
 
 - Linuxserver.io Radarr and/or Sonarr
-- A free [TMDB v3 API key](https://www.themoviedb.org/settings/api) — the short hex string, not the JWT read access token
+- A free [TMDB read access token](https://www.themoviedb.org/settings/api) — the long v4 JWT, not the short v3 API key
 
 ---
 
@@ -15,9 +15,8 @@ Downloads trailers for movies and TV shows via TMDB and yt-dlp. Triggered automa
 
 | File | Purpose |
 |---|---|
-| `trailarr-parrk.conf` | All configuration — edit this file only |
-| `trailarr-parrk.sh` | Main script, handles both automated and manual runs |
-| `99-install-dependencies.sh` | Container init script, installs `jq` and `yt-dlp` on startup |
+| `trailarr-parrk.sh` | Main script — config block is at the top, edit this file |
+| `99-install_dependencies.sh` | Container init script, installs `ffmpeg`, `jq`, `curl`, and `yt-dlp` on startup |
 
 One set of files per Arr instance.
 
@@ -33,7 +32,7 @@ mkdir -p /path/to/appdata/{radarr,sonarr}/{cont-init.d,scripts}
 
 ### 2. Install dependencies
 
-Copy `99-install-dependencies.sh` into each `cont-init.d` folder and mount it in your Docker Compose:
+Copy `99-install_dependencies.sh` into each `cont-init.d` folder and mount it in your Docker Compose:
 
 Radarr:
 ```yaml
@@ -44,23 +43,23 @@ Sonarr:
 - /path/to/appdata/sonarr/cont-init.d:/etc/cont-init.d
 ```
 
-Restart each container. `jq` and `yt-dlp` will be installed automatically on every start.
+Restart each container. Dependencies will be installed automatically on every start.
 
 ### 3. Configure
 
-Copy `trailarr-parrk.conf` and `trailarr-parrk.sh` into each scripts directory:
+Copy `trailarr-parrk.sh` into each scripts directory:
 ```
 /path/to/appdata/radarr/scripts/
 /path/to/appdata/sonarr/scripts/
 ```
 
-Add your TMDB API key to `trailarr-parrk.conf` and adjust any other settings.
+Edit the config block near the top of `trailarr-parrk.sh` and add your TMDB read access token.
 
 ### 4. Set permissions
 
 ```bash
 chmod +x trailarr-parrk.sh
-chown PUID:PGID trailarr-parrk.sh trailarr-parrk.conf
+chown PUID:PGID trailarr-parrk.sh
 ```
 
 Replace `PUID:PGID` with the values set in your container environment.
@@ -82,36 +81,29 @@ Use the **Test** button to confirm the script is found and executable.
 
 ## Configuration Reference
 
-All options live in `trailarr-parrk.conf`.
+All options live in the config block at the top of `trailarr-parrk.sh`.
 
 | Option | Default | Description |
 |---|---|---|
-| `TMDB_API_KEY` _(required)_ | _(empty)_ | TMDB v3 API key |
-| `DRY_RUN` | `false` | Log actions without downloading |
-| `TRAILER_SUBDIR` | `trailers` | Subdirectory within the media folder. Leave empty to save alongside media |
-| `FILENAME_OVERRIDE` | _(empty)_ | Override output filename. Auto-generates `Title (Year).trailer.mkv` if empty |
-| `PREFERRED_TERMS` | `("official" "trailer")` | At least one term must appear in the trailer name. Leave empty to allow any |
-| `EXCLUDED_TERMS` | `("teaser" "clip" "reaction" "interview" "tv spot" "behind the scenes" "b&w" "fan" "fanmade")` | Trailers containing any of these terms are skipped |
-| `DISCORD_WEBHOOK` | _(empty)_ | Webhook URL for download and failure notifications. Leave empty to disable |
-| `YT_COOKIES` | _(empty)_ | Path to a Netscape-format cookies file for yt-dlp, for age-restricted videos |
-| `MAX_CALLS` | `30` | TMDB API calls allowed per window |
-| `WINDOW_SECONDS` | `10` | Rate limit window in seconds |
+| `TMDB_API_KEY` _(required)_ | _(empty)_ | TMDB v4 read access token |
+| `PREFERRED_TERMS` | `"official,trailer,teaser,theatrical"` | Comma-separated. Each match adds +10 to the trailer's score. Trailers scoring 0 are skipped. Case-insensitive. |
+| `EXCLUDED_TERMS` | `"fan made,fan-made,reaction,parody,review,recut,behind the scenes,featurette"` | Comma-separated. Any match disqualifies a trailer entirely. Case-insensitive. |
+| `TRAILER_FOLDER` | `"trailers"` | Subfolder inside the media folder. Leave empty `""` to save directly into the media folder. |
+| `FILENAME_TEMPLATE` | `"{title} ({year}).trailer"` | Output filename without extension. Supports `{title}` and `{year}` tokens. |
+| `VIDEO_QUALITY` | `"1080"` | Max download height passed to yt-dlp. |
+| `DISCORD_WEBHOOK_URL` | _(empty)_ | Webhook URL for download and failure notifications. Leave empty to disable. |
 
 ---
 
 ## Trailer Selection
 
-The script fetches all videos linked to a title on TMDB and scores each candidate:
+The script fetches all videos linked to a title on TMDB, filters by site (YouTube) and type (Trailer), then scores each candidate:
 
 | Points | Condition |
 |---|---|
-| +60 | Trailer language matches the title's original language |
-| +40 | Trailer language is English (fallback) |
-| +20 | Each `PREFERRED_TERMS` match in the trailer name |
+| +10 | Each `PREFERRED_TERMS` match in the trailer name |
 
-Trailers are skipped entirely if their name contains any `EXCLUDED_TERMS`, or if no `PREFERRED_TERMS` match when the list is non-empty. The highest scoring trailer wins.
-
-Note: TMDB tags most trailers as `en` regardless of actual language, including foreign-language prints with burned-in subtitles. The language scoring reflects this reality — it will prefer a correctly tagged original-language trailer when one exists, but most titles will resolve to English.
+Trailers are excluded entirely if their name contains any `EXCLUDED_TERMS`. Trailers with a score of 0 (no preferred term matches) are also skipped. The highest scoring trailer wins.
 
 ---
 
@@ -119,35 +111,40 @@ Note: TMDB tags most trailers as `en` regardless of actual language, including f
 
 Run from inside the Radarr or Sonarr container console.
 
+**Simulate an automatic run** by setting the same environment variables Radarr/Sonarr would pass:
+
 ```bash
-# Dry run — show what would be selected without downloading
-bash /config/scripts/trailarr-parrk.sh --movie "Parasite" --path "/data/movies/Parasite (2019)" --dry-run
+# Dry run — scores and lists candidates without downloading
+radarr_eventtype="Download" radarr_movie_title="Dune" \
+  radarr_movie_year="2021" radarr_movie_path="/movies/Dune (2021)" \
+  radarr_movie_tmdbid="438631" sh /config/scripts/trailarr-parrk.sh --dry-run
 
-# Normal run — TMDB lookup and scoring as usual
-bash /config/scripts/trailarr-parrk.sh --movie "Parasite" --path "/data/movies/Parasite (2019)"
+# Normal run
+radarr_eventtype="Download" radarr_movie_title="Dune" \
+  radarr_movie_year="2021" radarr_movie_path="/movies/Dune (2021)" \
+  radarr_movie_tmdbid="438631" sh /config/scripts/trailarr-parrk.sh
+```
 
-# Override with a specific YouTube ID — skips TMDB entirely
-bash /config/scripts/trailarr-parrk.sh --movie "Parasite" --path "/data/movies/Parasite (2019)" --yt-id dUKFnBqlVSI
+**Force-download a specific YouTube video** (bypasses TMDB and scoring entirely):
 
-# Look up by TMDB ID instead of title
-bash /config/scripts/trailarr-parrk.sh --id 496243 --path "/data/movies/Parasite (2019)"
+```bash
+# Download to current directory
+/config/scripts/trailarr-parrk.sh --yt-id dUKFnBqlVSI --title "Parasite" --year 2019
 
-# TV show
-bash /config/scripts/trailarr-parrk.sh --series "The Bear" --path "/data/shows/The Bear (2022)"
+# Download to a specific path, dry run first
+/config/scripts/trailarr-parrk.sh --yt-id dUKFnBqlVSI --title "Parasite" --year 2019 \
+  --output "/data/movies/Parasite (2019)" --dry-run
 ```
 
 ### Flags
 
 | Flag | Description |
 |---|---|
-| `--movie "Title"` | Search TMDB by movie title |
-| `--series "Title"` | Search TMDB by series title |
-| `--id <tmdb_id>` | Look up by TMDB ID directly, skips title search |
-| `--path "/path"` | Media folder path, used to resolve output location |
 | `--yt-id <id>` | Download a specific YouTube video, bypasses TMDB and scoring |
+| `--title "Title"` | Title used for the output filename (required with `--yt-id`) |
+| `--year <year>` | Year used for the output filename (required with `--yt-id`) |
+| `--output <path>` | Output directory (optional, defaults to current directory) |
 | `--dry-run` | Log actions without downloading |
-
-`--movie` or `--series` with `--path` is the minimum required for a manual run. If a title search returns multiple matches, the script will list them with their TMDB IDs and ask you to re-run with `--id`.
 
 When triggered automatically by Radarr or Sonarr, no flags are needed — the script reads the event environment variables directly.
 
@@ -155,12 +152,10 @@ When triggered automatically by Radarr or Sonarr, no flags are needed — the sc
 
 ## Discord Notifications
 
-Set `DISCORD_WEBHOOK` in the conf to receive notifications on:
+Set `DISCORD_WEBHOOK_URL` in the script config to receive notifications on:
 
 - Trailer downloaded (includes YouTube URL and score)
-- Trailer manually replaced via `--yt-id`
-- No trailers found on TMDB
-- No trailer passed filtering
+- No valid trailers found (all excluded or scored 0)
 - Download failed
 
 To create a webhook: **Discord Server Settings → Integrations → Webhooks → New Webhook**.
@@ -171,12 +166,10 @@ To create a webhook: **Discord Server Settings → Integrations → Webhooks →
 
 **Script not triggering** — Check that the file is executable (`chmod +x`) and ownership matches the container's `PUID:PGID`.
 
-**`yt-dlp` or `jq` not found** — Confirm `99-install-dependencies.sh` is in `cont-init.d` and the volume mount is correct. Restart the container and check startup logs.
+**`yt-dlp`, `ffmpeg`, or `jq` not found** — Confirm `99-install_dependencies.sh` is in `cont-init.d` and the volume mount is correct. Restart the container and check startup logs.
 
-**Wrong trailer selected** — Run with `--dry-run` to see candidates. Adjust `PREFERRED_TERMS` and `EXCLUDED_TERMS` in the conf.
+**Wrong trailer selected** — Simulate a run with `--dry-run` (via env vars) to see scored candidates. Adjust `PREFERRED_TERMS` and `EXCLUDED_TERMS` in the script config.
 
-**Age-restricted video fails** — Export a `cookies.txt` from your browser using a browser extension and set `YT_COOKIES` in the conf to the file path.
+**Private or unavailable video** — The YouTube video linked on TMDB is unavailable. Use `--yt-id` with a working public video ID.
 
-**Private video error** — The YouTube video linked on TMDB is unavailable. Use `--yt-id` with a working public video ID.
-
-**Multiple title matches** — Re-run with `--id` using one of the TMDB IDs listed in the output.
+**API errors** — Confirm `TMDB_API_KEY` is set to the v4 read access token (the long JWT string from your TMDB API settings page), not the short v3 key.
