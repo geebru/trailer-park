@@ -4,9 +4,15 @@
 # Runs once at container startup to ensure all tools are available.
 # =====================================================================
 
-echo "[Trailarr Parrk] Installing dependencies..."
+echo '[trailarr-parrk] Installing dependencies...\n'
 
-apk add --no-cache curl jq python3 py3-pip >/dev/null 2>&1
-pip install --no-cache-dir --break-system-packages yt-dlp >/dev/null 2>&1
+# Install ffmpeg and jq via apk if not already present
+for _pkg in ffmpeg jq curl; do
+    apk info -e "$_pkg" >/dev/null 2>&1 || apk add --no-cache "$_pkg"
+done
 
-echo "[Trailarr Parrk] Dependencies installed successfully."
+# Always update yt-dlp — it breaks against YouTube changes frequently
+curl -sSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+    -o /usr/local/bin/yt-dlp && chmod a+rx /usr/local/bin/yt-dlp
+
+echo '[trailarr-parrk] yt-dlp %s ready.\n' "$(yt-dlp --version 2>/dev/null)"
