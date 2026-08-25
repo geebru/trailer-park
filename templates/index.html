@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trailarr Parrk</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f1115;
+      --panel: #171a21;
+      --panel2: #1d2129;
+      --text: #edf0f4;
+      --muted: #9ca5b3;
+      --border: #2a303a;
+      --accent: #66d9a5;
+      --bad: #ff7272;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+    }
+    a { color: inherit; text-decoration: none; }
+    .wrap {
+      width: min(1120px, calc(100% - 32px));
+      margin: 32px auto 64px;
+    }
+    .top {
+      display: flex;
+      gap: 16px;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    h1 { margin: 0; font-size: 30px; }
+    h2 { margin: 0; font-size: 20px; }
+    .sub { color: var(--muted); margin-top: 6px; }
+    .nav {
+      display: flex;
+      gap: 8px;
+      margin-top: 18px;
+    }
+    .nav a {
+      padding: 8px 11px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: var(--panel);
+    }
+    .nav .active { border-color: #2e725c; background: #163c30; }
+    .meta {
+      color: var(--muted);
+      font-size: 13px;
+      text-align: right;
+    }
+    .message, .batch, .error {
+      margin: 18px 0;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      border-radius: 9px;
+    }
+    .message { border-color: #315f4e; }
+    .error { border-color: #6e3838; color: #ffd0d0; }
+    .batch strong { color: var(--accent); }
+    .actions {
+      margin: 20px 0 28px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    button {
+      background: var(--panel2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font: inherit;
+    }
+    button:hover { border-color: var(--accent); }
+    .primary {
+      background: #163c30;
+      border-color: #2e725c;
+    }
+    .section {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      overflow: hidden;
+      margin: 18px 0;
+    }
+    .section-head {
+      padding: 14px 16px;
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel2);
+    }
+    .count { color: var(--muted); }
+    .item {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) auto;
+      gap: 16px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      align-items: center;
+    }
+    .item:last-child { border-bottom: 0; }
+    .title { font-weight: 650; margin-bottom: 3px; }
+    .path {
+      color: var(--muted);
+      font-size: 12px;
+      word-break: break-all;
+    }
+    .buttons {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .force {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    input {
+      width: 150px;
+      background: #0f1217;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 8px;
+    }
+    .empty { color: var(--muted); padding: 20px 16px; }
+    .empty a { color: var(--accent); }
+    @media (max-width: 760px) {
+      .item { grid-template-columns: 1fr; }
+      .buttons { justify-content: flex-start; }
+      .meta { text-align: left; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>Trailarr Parrk</h1>
+      <div class="sub">Missing trailer grabber</div>
+      <div class="nav">
+        <a class="active" href="{{ url_for('index') }}">Missing</a>
+        <a href="{{ url_for('settings_page') }}">Settings</a>
+      </div>
+    </div>
+    <div class="meta">
+      Quality: {{ video_quality }}p<br>
+      Root: {{ media_root }}<br>
+      Version: v{{ app_version }}
+    </div>
+  </div>
+
+  {% if message %}
+    <div class="message">{{ message }}</div>
+  {% endif %}
+
+  {% if errors.radarr and errors.radarr != "Not configured" %}
+    <div class="error">Radarr: {{ errors.radarr }}</div>
+  {% endif %}
+
+  {% if errors.sonarr and errors.sonarr != "Not configured" %}
+    <div class="error">Sonarr: {{ errors.sonarr }}</div>
+  {% endif %}
+
+  {% if batch.running %}
+    <div class="batch">
+      <strong>Batch running</strong> —
+      {{ batch.done }}/{{ batch.total }}
+      {% if batch.current %} — {{ batch.current }}{% endif %}
+    </div>
+  {% elif batch.total %}
+    <div class="batch">
+      Last batch: {{ batch.success }} downloaded,
+      {{ batch.failed }} failed.
+      {% if batch.last_error %}<br>{{ batch.last_error }}{% endif %}
+    </div>
+  {% endif %}
+
+  <div class="actions">
+    <form action="{{ url_for('ui_grab_all') }}" method="post">
+      <button class="primary" type="submit">Grab all missing</button>
+    </form>
+    <button type="button" onclick="location.reload()">Refresh</button>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <h2>Movies</h2>
+      <span class="count">{{ radarr_items|length }} missing</span>
+    </div>
+
+    {% if radarr_items %}
+      {% for item in radarr_items %}
+        <div class="item">
+          <div>
+            <div class="title">
+              {{ item.title }}{% if item.year %} ({{ item.year }}){% endif %}
+            </div>
+            <div class="path">{{ item.path }}</div>
+          </div>
+
+          <div class="buttons">
+            <form action="{{ url_for('ui_grab') }}" method="post">
+              <input type="hidden" name="source" value="radarr">
+              <input type="hidden" name="id" value="{{ item.id }}">
+              <button class="primary" type="submit">Grab</button>
+            </form>
+
+            <form class="force" action="{{ url_for('ui_force') }}" method="post">
+              <input type="hidden" name="source" value="radarr">
+              <input type="hidden" name="id" value="{{ item.id }}">
+              <input name="yt_id" placeholder="YouTube ID" required>
+              <button type="submit">Force</button>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty">
+        {% if errors.radarr == "Not configured" %}
+          Radarr not configured. <a href="{{ url_for('settings_page') }}">Open Settings</a>.
+        {% else %}
+          No missing movie trailers.
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <h2>TV</h2>
+      <span class="count">{{ sonarr_items|length }} missing</span>
+    </div>
+
+    {% if sonarr_items %}
+      {% for item in sonarr_items %}
+        <div class="item">
+          <div>
+            <div class="title">
+              {{ item.title }}{% if item.year %} ({{ item.year }}){% endif %}
+            </div>
+            <div class="path">{{ item.path }}</div>
+          </div>
+
+          <div class="buttons">
+            <form action="{{ url_for('ui_grab') }}" method="post">
+              <input type="hidden" name="source" value="sonarr">
+              <input type="hidden" name="id" value="{{ item.id }}">
+              <button class="primary" type="submit">Grab</button>
+            </form>
+
+            <form class="force" action="{{ url_for('ui_force') }}" method="post">
+              <input type="hidden" name="source" value="sonarr">
+              <input type="hidden" name="id" value="{{ item.id }}">
+              <input name="yt_id" placeholder="YouTube ID" required>
+              <button type="submit">Force</button>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty">
+        {% if errors.sonarr == "Not configured" %}
+          Sonarr not configured. <a href="{{ url_for('settings_page') }}">Open Settings</a>.
+        {% else %}
+          No missing TV trailers.
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if batch.running %}
+<script>
+  setTimeout(() => location.reload(), 5000);
+</script>
+{% endif %}
+</body>
+</html>

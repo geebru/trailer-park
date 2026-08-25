@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trailarr Parrk — Activity</title>
+  <style>
+    :root { color-scheme:dark; --bg:#0f1115; --panel:#171a21; --panel2:#1d2129; --text:#edf0f4; --muted:#9ca5b3; --border:#2a303a; --accent:#66d9a5; --warn:#f4c95d; --bad:#ff7272; }
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,sans-serif} a{color:inherit;text-decoration:none}
+    .wrap{width:min(1100px,calc(100% - 32px));margin:28px auto 64px}.top{display:flex;justify-content:space-between;gap:16px}.top h1{margin:0;font-size:30px}.sub,.version{color:var(--muted);font-size:13px}.sub{margin-top:6px;font-size:inherit}
+    .nav{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 22px}.nav a{padding:8px 11px;border:1px solid var(--border);border-radius:7px;background:var(--panel)}.nav a.active{border-color:#2e725c;background:#163c30}
+    .toolbar{display:flex;gap:10px;align-items:center;margin:16px 0;flex-wrap:wrap} input,select,button{background:#0f1217;color:var(--text);border:1px solid var(--border);border-radius:7px;padding:8px 10px;font:inherit} input{flex:1;min-width:250px}button{cursor:pointer;background:var(--panel2)}button:hover{border-color:var(--accent)}
+    .message,.batch{margin:14px 0;padding:12px 14px;border:1px solid #315f4e;border-radius:9px;background:var(--panel)}
+    .entry{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin:10px 0}.row{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.title{font-weight:650}.meta{color:var(--muted);font-size:12px;margin-top:4px}.detail{margin-top:9px;color:var(--muted);line-height:1.45}.status{font-size:12px;font-weight:700}.success{color:var(--accent)}.warning{color:var(--warn)}.error{color:var(--bad)} details{margin-top:9px;color:var(--muted)} pre{white-space:pre-wrap;word-break:break-word;background:#0f1217;padding:10px;border-radius:7px;border:1px solid var(--border)}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><div><h1>Activity</h1><div class="sub">Trailer history and diagnostics</div></div><div class="version">v{{ app_version }}</div></div>
+  <div class="nav">
+    {% for lib in libraries %}<a href="{{ url_for('library_page', library_id=lib.id) }}">{{ lib.name }}</a>{% endfor %}
+    <a class="active" href="{{ url_for('activity_page') }}">Activity</a><a href="{{ url_for('settings_page') }}">Settings</a>
+  </div>
+
+  {% if message %}<div class="message">{{ message }}</div>{% endif %}
+  {% if batch.running %}
+    <div class="batch">
+      <strong>{{ 'Cancelling' if batch.cancel_requested else batch.scope }}</strong> — {{ batch.done }}/{{ batch.total }} complete · {{ batch.queued }} queued
+      {% if batch.active %}<br>Active: {{ batch.active|join(', ') }}{% endif %}
+      <form action="{{ url_for('ui_batch_cancel') }}" method="post" style="margin-top:10px">
+        <input type="hidden" name="next_url" value="{{ request.path }}">
+        <button type="submit" {% if batch.cancel_requested %}disabled{% endif %}>
+          {{ 'Cancellation requested' if batch.cancel_requested else 'Cancel batch' }}
+        </button>
+      </form>
+    </div>
+  {% elif batch.total and batch.cancelled %}
+    <div class="batch">Last batch: Cancelled · {{ batch.cancelled_count }} queued item(s) not started.</div>
+  {% endif %}
+
+  <div class="toolbar">
+    <input id="search" placeholder="Search activity...">
+    <select id="status-filter"><option value="">All statuses</option><option value="success">Success</option><option value="warning">Warning</option><option value="error">Error</option></select>
+    <form action="{{ url_for('activity_clear') }}" method="post" onsubmit="return confirm('Clear activity history?');"><button type="submit">Clear history</button></form>
+  </div>
+
+  <div id="activity-list">
+    {% for entry in activity %}
+      <div class="entry" data-search="{{ ((entry.title or '') ~ ' ' ~ (entry.library or '') ~ ' ' ~ (entry.detail or '') ~ ' ' ~ (entry.trailer_name or '') ~ ' ' ~ (entry.youtube_id or ''))|lower }}" data-status="{{ entry.status or '' }}">
+        <div class="row">
+          <div>
+            <div class="title">{{ entry.title or entry.action or 'Activity' }}{% if entry.year %} ({{ entry.year }}){% endif %}</div>
+            <div class="meta">{{ entry.timestamp }}{% if entry.library %} · {{ entry.library }}{% endif %}{% if entry.source %} · {{ entry.source }}{% endif %}{% if entry.connection %} · {{ entry.connection }}{% endif %}</div>
+          </div>
+          <div class="status {{ entry.status or '' }}">{{ (entry.status or 'info')|upper }}</div>
+        </div>
+        <div class="detail">
+          {% if entry.trailer_name %}<strong>{{ entry.trailer_name }}</strong>{% endif %}
+          {% if entry.youtube_id %} · YouTube {{ entry.youtube_id }}{% endif %}
+          {% if entry.score is defined and entry.score is not none %} · Score +{{ entry.score }}{% endif %}
+          {% if entry.duration %} · {{ entry.duration }}s{% endif %}
+          {% if entry.detail %}<br>{{ entry.detail }}{% endif %}
+        </div>
+        {% if entry.excluded %}
+          <details><summary>Excluded candidates</summary><pre>{{ entry.excluded|tojson(indent=2) }}</pre></details>
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="entry"><div class="detail">No activity recorded yet.</div></div>
+    {% endfor %}
+  </div>
+</div>
+<script>
+  const search = document.getElementById('search');
+  const filter = document.getElementById('status-filter');
+  function applyFilter(){
+    const q=search.value.trim().toLowerCase(), s=filter.value;
+    document.querySelectorAll('.entry[data-search]').forEach(el=>{
+      el.style.display = el.dataset.search.includes(q) && (!s || el.dataset.status===s) ? '' : 'none';
+    });
+  }
+  search.addEventListener('input',applyFilter); filter.addEventListener('change',applyFilter);
+  {% if batch.running %}setTimeout(()=>location.reload(),4000);{% endif %}
+</script>
+</body>
+</html>

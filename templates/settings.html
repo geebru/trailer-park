@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trailarr Parrk — Settings</title>
+  <style>
+    :root { color-scheme:dark; --bg:#0f1115; --panel:#171a21; --panel2:#1d2129; --text:#edf0f4; --muted:#9ca5b3; --border:#2a303a; --accent:#66d9a5; --bad:#ff7272; --warn:#f4c95d; }
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,sans-serif} a{color:inherit;text-decoration:none}
+    .wrap{width:min(1050px,calc(100% - 32px));margin:28px auto 64px}.top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}.top h1{margin:0;font-size:30px}.sub{color:var(--muted);margin-top:6px}.version{color:var(--muted);font-size:13px}
+    .nav{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 22px}.nav a{padding:8px 11px;border:1px solid var(--border);border-radius:7px;background:var(--panel)}.nav a.active{border-color:#2e725c;background:#163c30}
+    .message,.error,.batch{margin:14px 0;padding:12px 14px;border:1px solid #315f4e;border-radius:9px;background:var(--panel)}.error{border-color:#6e3838;color:#ffd0d0}.batch{border-color:var(--border)}
+    .section{margin:16px 0;background:var(--panel);border:1px solid var(--border);border-radius:11px;overflow:hidden}.section-head{padding:13px 16px;background:var(--panel2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:12px;align-items:center}.section-head h2{margin:0;font-size:19px}.fields{padding:16px}.field{display:grid;grid-template-columns:200px 1fr auto;gap:12px;align-items:center;margin-bottom:13px}.field:last-child{margin-bottom:0}.field-wide{display:grid;grid-template-columns:200px 1fr;gap:12px;align-items:start;margin-bottom:13px}
+    label{font-weight:600} input,textarea,select,button{background:#0f1217;color:var(--text);border:1px solid var(--border);border-radius:7px;padding:9px 10px;font:inherit} input,textarea,select{width:100%} textarea{min-height:76px;resize:vertical} button{cursor:pointer;background:var(--panel2);white-space:nowrap} button:hover{border-color:var(--accent)} button:disabled{opacity:.55;cursor:wait}.primary{background:#163c30;border-color:#2e725c}.danger{border-color:#6e3838}.status{font-size:12px;color:var(--muted)}.status.configured{color:var(--accent)}.help{color:var(--muted);font-size:12px;line-height:1.45;margin-top:6px}.clear{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center;margin-top:6px}.clear input{width:auto}.card{border:1px solid var(--border);border-radius:9px;padding:13px;margin-bottom:10px;background:#13161c}.card-grid{display:grid;grid-template-columns:1.1fr .7fr 1.7fr 1.5fr auto;gap:8px;align-items:center}.library-grid{display:grid;grid-template-columns:1.2fr 1.2fr 1.8fr auto;gap:8px;align-items:center}.card-actions{display:flex;gap:6px;align-items:center}.mini-status{font-size:12px;color:var(--muted);margin-top:7px}.mini-status.configured{color:var(--accent)}.add-row{margin-top:10px}.savebar{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}.ytdlp-grid{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center}.value{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.global-box{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap}.warning{color:var(--warn)}
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;padding:16px;z-index:20}.modal{width:min(520px,100%);background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px}.modal h3{margin-top:0}.modal p{color:var(--muted);line-height:1.45}.modal-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+    @media(max-width:850px){.field,.field-wide{grid-template-columns:1fr}.card-grid,.library-grid{grid-template-columns:1fr}.ytdlp-grid{grid-template-columns:1fr}.card-actions{justify-content:flex-start}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><div><h1>Trailarr Parrk</h1><div class="sub">Settings</div></div><div class="version">v{{ app_version }}</div></div>
+  <div class="nav">
+    {% for lib in libraries %}<a class="nav-leave" href="{{ url_for('library_page', library_id=lib.id) }}">{{ lib.name }}</a>{% endfor %}
+    <a class="nav-leave" href="{{ url_for('activity_page') }}">Activity</a><a class="active" href="{{ url_for('settings_page') }}">Settings</a>
+  </div>
+
+  <div id="message-box" class="{{ 'error' if message_type == 'error' else 'message' }}" {% if not message %}style="display:none"{% endif %}>{{ message }}</div>
+  {% if batch.running %}
+    <div class="batch">
+      <strong>{{ 'Cancelling' if batch.cancel_requested else batch.scope }}</strong> — {{ batch.done }}/{{ batch.total }} complete · {{ batch.queued }} queued
+      <form action="{{ url_for('ui_batch_cancel') }}" method="post" style="margin-top:10px">
+        <input type="hidden" name="next_url" value="{{ request.path }}">
+        <button class="danger" type="submit" {% if batch.cancel_requested %}disabled{% endif %}>
+          {{ 'Cancellation requested' if batch.cancel_requested else 'Cancel batch' }}
+        </button>
+      </form>
+    </div>
+  {% elif batch.total and batch.cancelled %}
+    <div class="batch">Last batch: Cancelled · {{ batch.cancelled_count }} queued item(s) not started.</div>
+  {% endif %}
+
+  <form id="settings-form" method="post">
+    <input type="hidden" id="connections_json" name="connections_json">
+    <input type="hidden" id="libraries_json" name="libraries_json">
+    <input type="hidden" id="next_url" name="next_url" value="">
+
+    <div class="section">
+      <div class="section-head"><h2>TMDB</h2><span id="tmdb-status" class="status {{ 'configured' if configured.tmdb else '' }}">{{ '✓ Configured' if configured.tmdb else '○ Not configured' }}</span></div>
+      <div class="fields">
+        <div class="field">
+          <label for="tmdb_api_key">Read Access Token</label>
+          <div><input id="tmdb_api_key" name="tmdb_api_key" type="password" autocomplete="new-password" placeholder="Leave blank to keep current token"><label class="clear"><input type="checkbox" name="clear_tmdb_api_key" value="1">Clear saved token</label></div>
+          <button class="test-service" data-service="tmdb" type="button">Test</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2>Arr Connections</h2><span class="status">Multiple Radarr / Sonarr instances supported</span></div>
+      <div class="fields">
+        <div id="connections"></div>
+        <button class="add-row" id="add-connection" type="button">+ Add connection</button>
+        <div class="help">Successful Test saves only that connection. Blank API key keeps the currently saved key.</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2>Libraries</h2><span class="status">Custom pages and optional root filtering</span></div>
+      <div class="fields">
+        <div id="libraries"></div>
+        <button class="add-row" id="add-library" type="button">+ Add library</button>
+        <div class="help">Examples: Movies, TV Shows, Anime Movies, Anime TV. Leave root path blank to include every usable item from that Arr connection.</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2>Discord</h2><span id="discord-status" class="status {{ 'configured' if configured.discord else '' }}">{{ '✓ Configured' if configured.discord else '○ Not configured' }}</span></div>
+      <div class="fields">
+        <div class="field">
+          <label for="discord_webhook_url">Webhook URL</label>
+          <div><input id="discord_webhook_url" name="discord_webhook_url" type="password" autocomplete="new-password" placeholder="Leave blank to keep current webhook"><label class="clear"><input type="checkbox" name="clear_discord_webhook_url" value="1">Clear saved webhook</label></div>
+          <button class="test-service" data-service="discord" type="button">Test</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2>Media</h2></div>
+      <div class="fields">
+        <div class="field-wide"><label for="media_root">Media root</label><div><input id="media_root" name="media_root" value="{{ settings.media_root }}"><div class="help">Must exist and be readable inside the container.</div></div></div>
+        <div class="field-wide"><label for="trailer_folder">Trailer folder</label><input id="trailer_folder" name="trailer_folder" value="{{ settings.trailer_folder }}"></div>
+        <div class="field-wide"><label for="filename_template">Filename template</label><input id="filename_template" name="filename_template" value="{{ settings.filename_template }}"></div>
+        <div class="field-wide"><label for="video_quality">Max quality</label><input id="video_quality" name="video_quality" value="{{ settings.video_quality }}"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2>Matching</h2></div>
+      <div class="fields">
+        <div class="field-wide"><label for="preferred_terms">Preferred terms</label><div><textarea id="preferred_terms" name="preferred_terms">{{ settings.preferred_terms }}</textarea><div class="help">Comma-separated. `teaser` scores +5; other preferred terms score +10. TMDB Trailer/Teaser type and Official flag are also considered for these baseline terms.</div></div></div>
+        <div class="field-wide"><label for="excluded_terms">Excluded terms</label><textarea id="excluded_terms" name="excluded_terms">{{ settings.excluded_terms }}</textarea></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2>Performance</h2></div>
+      <div class="fields">
+        <div class="field-wide"><label for="max_concurrent_downloads">Concurrent downloads</label><div><select id="max_concurrent_downloads" name="max_concurrent_downloads">{% for n in range(1,5) %}<option value="{{ n }}" {{ 'selected' if settings.max_concurrent_downloads|string == n|string else '' }}>{{ n }}</option>{% endfor %}</select><div class="help">Default 1. Applies across Web UI, batch, webhooks and CLI using a cross-process limiter. Waitress remains at 4 web threads.</div></div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2>yt-dlp</h2><span class="status">Persistent runtime updater</span></div>
+      <div class="fields">
+        <div class="ytdlp-grid">
+          <div>
+            Active: <span id="ytdlp-active" class="value">{{ ytdlp.active }}</span><br>
+            Bundled: <span id="ytdlp-bundled" class="value">{{ ytdlp.bundled }}</span><br>
+            Latest: <span id="ytdlp-latest" class="value">{{ ytdlp.latest or 'Not checked yet' }}</span><br>
+            Last checked: <span id="ytdlp-last-checked" class="value">{{ ytdlp.last_checked or 'Never' }}</span><br>
+            <span id="ytdlp-note" class="help">
+              {% if ytdlp.latest %}
+                {{ '✓ Up to date' if ytdlp.up_to_date else 'Update available' }} ·
+              {% endif %}
+              {% if ytdlp.using_override %}Using persistent /config override.{% else %}Using Docker image version.{% endif %}
+              Automatic update check runs every 24 hours; updates are never installed automatically.
+            </span>
+          </div>
+          <div class="card-actions"><button id="check-ytdlp" type="button">Check for update</button><button id="update-ytdlp" class="primary" type="button">Update yt-dlp</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><h2>Global actions</h2></div>
+      <div class="fields">
+        <div class="global-box"><div><strong>Grab all missing across all libraries</strong><div class="help">Per-library Grab all only affects the current page. This action checks every configured library and asks for confirmation first.</div></div><button id="global-grab" type="button">Grab all libraries</button></div>
+      </div>
+    </div>
+
+    <div class="savebar"><button class="primary" type="submit">Save settings</button></div>
+    <div class="help">Stored in {{ settings_file }}. API keys and webhook URLs are not shown after saving.</div>
+  </form>
+</div>
+
+<div id="leave-modal" class="modal-backdrop"><div class="modal"><h3>Unsaved settings</h3><p>Settings have unsaved changes. Do you want to save them before leaving?</p><div class="modal-actions"><button id="cancel-leave" type="button">Cancel</button><button id="discard-leave" type="button">Continue without saving</button><button id="save-leave" class="primary" type="button">Save & continue</button></div></div></div>
+
+<script>
+  const initialConnections = {{ connections|tojson }};
+  const initialLibraries = {{ library_settings|tojson }};
+  const form = document.getElementById('settings-form');
+  const connectionsEl = document.getElementById('connections');
+  const librariesEl = document.getElementById('libraries');
+  const messageBox = document.getElementById('message-box');
+  let dirty = false;
+  let pendingHref = '';
+
+  function uid(prefix){ return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2,8)}`; }
+  function showMessage(text, error=false){ messageBox.textContent=text; messageBox.className=error?'error':'message'; messageBox.style.display='block'; window.scrollTo({top:0,behavior:'smooth'}); }
+  function markDirty(){ dirty=true; }
+
+  function connectionOptions(selected){
+    return [...connectionsEl.querySelectorAll('.connection-card')].map(card=>({id:card.dataset.id,name:card.querySelector('.conn-name').value||'Unnamed'})).map(c=>`<option value="${c.id}" ${c.id===selected?'selected':''}>${escapeHtml(c.name)}</option>`).join('');
+  }
+  function escapeHtml(value){ const div=document.createElement('div'); div.textContent=value??''; return div.innerHTML; }
+
+  function refreshLibraryConnectionOptions(){
+    [...librariesEl.querySelectorAll('.library-card')].forEach(card=>{
+      const select=card.querySelector('.lib-connection'); const current=select.value;
+      select.innerHTML=connectionOptions(current);
+      if([...select.options].some(o=>o.value===current)) select.value=current;
+    });
+  }
+
+  function addConnection(data={}){
+    const id=data.id||uid('arr');
+    const card=document.createElement('div'); card.className='card connection-card'; card.dataset.id=id;
+    card.dataset.configured=data.configured?'1':'0';
+    card.innerHTML=`<div class="card-grid">
+      <input class="conn-name" placeholder="Name" value="${escapeHtml(data.name||'')}">
+      <select class="conn-type"><option value="radarr" ${data.type==='radarr'?'selected':''}>Radarr</option><option value="sonarr" ${data.type==='sonarr'?'selected':''}>Sonarr</option></select>
+      <input class="conn-url" placeholder="http://radarr:7878" value="${escapeHtml(data.url||'')}">
+      <input class="conn-key" type="password" autocomplete="new-password" placeholder="${data.configured?'Leave blank to keep current API key':'API key'}">
+      <div class="card-actions"><button class="conn-test" type="button">Test</button><button class="conn-remove danger" type="button">Remove</button></div>
+    </div><label class="clear"><input class="conn-clear" type="checkbox">Clear saved API key</label><div class="mini-status ${data.configured?'configured':''}">${data.configured?'✓ Configured':'○ Not configured'}</div>`;
+    connectionsEl.appendChild(card);
+    card.querySelectorAll('input,select').forEach(el=>el.addEventListener('input',()=>{markDirty();refreshLibraryConnectionOptions();}));
+    card.querySelector('.conn-remove').addEventListener('click',()=>{ card.remove(); refreshLibraryConnectionOptions(); markDirty(); });
+    card.querySelector('.conn-test').addEventListener('click',()=>testConnection(card));
+    refreshLibraryConnectionOptions();
+  }
+
+  function addLibrary(data={}){
+    const id=data.id||uid('lib');
+    const card=document.createElement('div'); card.className='card library-card'; card.dataset.id=id;
+    card.innerHTML=`<div class="library-grid">
+      <input class="lib-name" placeholder="Library name" value="${escapeHtml(data.name||'')}">
+      <select class="lib-connection">${connectionOptions(data.connection_id||'')}</select>
+      <input class="lib-root" placeholder="Optional root, e.g. /data/media/anime-movies" value="${escapeHtml(data.root_path||'')}">
+      <button class="lib-remove danger" type="button">Remove</button>
+    </div>`;
+    librariesEl.appendChild(card);
+    const select=card.querySelector('.lib-connection'); if(data.connection_id) select.value=data.connection_id;
+    card.querySelectorAll('input,select').forEach(el=>el.addEventListener('input',markDirty));
+    card.querySelector('.lib-remove').addEventListener('click',()=>{card.remove();markDirty();});
+  }
+
+  function serializeConnections(){
+    return [...connectionsEl.querySelectorAll('.connection-card')].map(card=>({
+      id:card.dataset.id,
+      name:card.querySelector('.conn-name').value,
+      type:card.querySelector('.conn-type').value,
+      url:card.querySelector('.conn-url').value,
+      api_key:card.querySelector('.conn-key').value,
+      clear_api_key:card.querySelector('.conn-clear').checked
+    }));
+  }
+  function serializeLibraries(){
+    return [...librariesEl.querySelectorAll('.library-card')].map(card=>({
+      id:card.dataset.id,
+      name:card.querySelector('.lib-name').value,
+      connection_id:card.querySelector('.lib-connection').value,
+      root_path:card.querySelector('.lib-root').value
+    }));
+  }
+  function prepareForm(){ document.getElementById('connections_json').value=JSON.stringify(serializeConnections()); document.getElementById('libraries_json').value=JSON.stringify(serializeLibraries()); }
+
+  async function testConnection(card){
+    const button=card.querySelector('.conn-test'); button.disabled=true;
+    const payload={id:card.dataset.id,name:card.querySelector('.conn-name').value,type:card.querySelector('.conn-type').value,url:card.querySelector('.conn-url').value,api_key:card.querySelector('.conn-key').value,clear_api_key:card.querySelector('.conn-clear').checked};
+    try{
+      const response=await fetch('{{ url_for('settings_test_arr') }}',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const data=await response.json(); if(!response.ok) throw new Error(data.message||'Connection test failed.');
+      card.dataset.id=data.connection.id; card.dataset.configured='1'; card.querySelector('.conn-key').value=''; card.querySelector('.conn-clear').checked=false;
+      const status=card.querySelector('.mini-status'); status.textContent='✓ Configured'; status.classList.add('configured');
+      showMessage(data.message); refreshLibraryConnectionOptions();
+    }catch(err){ showMessage(err.message,true); }
+    finally{ button.disabled=false; }
+  }
+
+  document.getElementById('add-connection').addEventListener('click',()=>{addConnection({name:'New Arr',type:'radarr',url:'http://radarr:7878'});markDirty();});
+  document.getElementById('add-library').addEventListener('click',()=>{addLibrary({name:'New Library'});markDirty();});
+  initialConnections.forEach(addConnection); initialLibraries.forEach(addLibrary);
+
+  form.addEventListener('input',markDirty);
+  form.addEventListener('change',markDirty);
+  form.addEventListener('submit',()=>{ prepareForm(); dirty=false; });
+
+  document.querySelectorAll('.test-service').forEach(button=>button.addEventListener('click',async()=>{
+    button.disabled=true; const service=button.dataset.service;
+    try{
+      const body=new FormData(form); const response=await fetch(`/settings/test/${service}`,{method:'POST',body}); const data=await response.json();
+      if(!response.ok) throw new Error(data.message||'Test failed.');
+      showMessage(data.message);
+      const status=document.getElementById(`${service}-status`); status.textContent='✓ Configured'; status.classList.add('configured');
+      const secret=document.getElementById(service==='tmdb'?'tmdb_api_key':'discord_webhook_url'); secret.value='';
+    }catch(err){showMessage(err.message,true);}finally{button.disabled=false;}
+  }));
+
+  document.getElementById('check-ytdlp').addEventListener('click',async()=>{
+    const button=document.getElementById('check-ytdlp'); button.disabled=true;
+    try{const r=await fetch('{{ url_for('api_ytdlp_check') }}');const d=await r.json();if(!r.ok)throw new Error(d.message||'Check failed.');document.getElementById('ytdlp-active').textContent=d.active;document.getElementById('ytdlp-bundled').textContent=d.bundled;document.getElementById('ytdlp-latest').textContent=d.latest;document.getElementById('ytdlp-last-checked').textContent=d.last_checked||'Never';document.getElementById('ytdlp-note').textContent=d.up_to_date?'✓ Up to date · Automatic check every 24 hours.':`Update available: ${d.latest} · Automatic check every 24 hours.`;}catch(e){showMessage(e.message,true);}finally{button.disabled=false;}
+  });
+  document.getElementById('update-ytdlp').addEventListener('click',async()=>{
+    if(!confirm('Download, verify and activate the latest yt-dlp under /config?'))return;
+    const button=document.getElementById('update-ytdlp'); button.disabled=true;
+    try{const r=await fetch('{{ url_for('api_ytdlp_update') }}',{method:'POST'});const d=await r.json();if(!r.ok)throw new Error(d.message||'Update failed.');document.getElementById('ytdlp-active').textContent=d.active;document.getElementById('ytdlp-bundled').textContent=d.bundled;document.getElementById('ytdlp-latest').textContent=d.latest||d.active;document.getElementById('ytdlp-last-checked').textContent=d.last_checked||'Never';document.getElementById('ytdlp-note').textContent='✓ Persistent /config override active. Automatic check every 24 hours.';showMessage(d.message);}catch(e){showMessage(e.message,true);}finally{button.disabled=false;}
+  });
+
+  document.getElementById('global-grab').addEventListener('click',async()=>{
+    try{
+      const r=await fetch('{{ url_for('api_global_missing_summary') }}'); const d=await r.json(); if(!r.ok) throw new Error('Could not load missing summary.');
+      if(!d.total){showMessage('No missing trailers across configured libraries.');return;}
+      const lines=d.libraries.filter(x=>x.count||x.error).map(x=>`${x.name}: ${x.count}${x.error?' (error: '+x.error+')':''}`).join('\n');
+      if(!confirm(`Grab all missing trailers?\n\n${lines}\n\nTotal: ${d.total}`))return;
+      const form=document.createElement('form');form.method='POST';form.action='{{ url_for('global_grab_all') }}';document.body.appendChild(form);form.submit();
+    }catch(e){showMessage(e.message,true);}
+  });
+
+  const modal=document.getElementById('leave-modal');
+  document.querySelectorAll('.nav-leave').forEach(link=>link.addEventListener('click',event=>{if(!dirty)return;event.preventDefault();pendingHref=link.href;modal.style.display='flex';}));
+  document.getElementById('cancel-leave').addEventListener('click',()=>{modal.style.display='none';pendingHref='';});
+  document.getElementById('discard-leave').addEventListener('click',()=>{if(pendingHref)location.href=pendingHref;});
+  document.getElementById('save-leave').addEventListener('click',()=>{prepareForm();document.getElementById('next_url').value=pendingHref;dirty=false;form.submit();});
+</script>
+</body>
+</html>
