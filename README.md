@@ -2,9 +2,9 @@
 
 Downloads local trailers for Radarr/Sonarr libraries using TMDB + yt-dlp.
 
-Current release: **v0.6.1**
+Current release: **v0.6.2**
 
-v0.6.1 adds safe batch cancellation, automatic daily yt-dlp update checks, clearer configured-state handling and fixes trailer finalization for paths containing characters such as `[tmdbid-123456]`.
+v0.6.2 adds a Radarr/Sonarr API watcher (no webhook needed), fixes webhooks reporting trailers as downloaded for newly added films, and finds original-language trailers for anime and other non-English titles. v0.6.1 added safe batch cancellation, automatic daily yt-dlp update checks, clearer configured-state handling and fixes trailer finalization for paths containing characters such as `[tmdbid-123456]`.
 
 ---
 
@@ -155,6 +155,18 @@ The legacy generic webhook remains available:
 ```text
 http://trailarr-parrk:8080/hook
 ```
+
+**Automatic grabs** work two ways, and you can use either or both:
+
+- **Watch Radarr/Sonarr** (Settings → Performance, default every 5 minutes): uses the API connection. Radarr grabs on import and upgrade; Sonarr grabs when a series is added, waiting for its folder if Sonarr hasn't created it yet. The first check only records a baseline — use Grab all missing for older titles.
+- **Webhook** (instant): Settings shows each connection's webhook URL with a Copy button and when its last webhook arrived.
+
+Webhook triggers:
+
+- **Radarr:** On File Import (required), On File Upgrade (optional). Leave On Grab and On Movie Added off — they fire before the movie folder exists and Trailarr answers `deferred`.
+- **Sonarr:** On Import and On Series Add. Series Add grabs right away if the series folder already exists (Sonarr's *Create empty series folders*); otherwise the first episode import grabs it.
+
+Existing trailers are kept on upgrades and later episode imports.
 
 ### Media
 

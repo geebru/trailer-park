@@ -29,7 +29,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-APP_VERSION = "0.6.1"
+APP_VERSION = "0.6.2"
 
 
 # ── Paths / persistent state ──────────────────────────────────────────────
@@ -54,6 +54,17 @@ YTDLP_STATUS_FILE = os.environ.get(
 )
 YTDLP_CHECK_INTERVAL_SECONDS = 24 * 60 * 60
 YTDLP_MONITOR_INTERVAL_SECONDS = 60 * 60
+
+WATCH_STATE_FILE = os.environ.get(
+    "WATCH_STATE_FILE",
+    os.path.join(CONFIG_DIR, "watch-state.json")
+)
+WATCH_PENDING_DAYS = 30
+
+WEBHOOK_STATUS_FILE = os.environ.get(
+    "WEBHOOK_STATUS_FILE",
+    os.path.join(CONFIG_DIR, "webhook-status.json")
+)
 
 DOWNLOAD_SLOT_DIR = os.environ.get(
     "DOWNLOAD_SLOT_DIR",
@@ -92,7 +103,10 @@ DEFAULT_SETTINGS = {
     "max_concurrent_downloads": os.environ.get(
         "MAX_CONCURRENT_DOWNLOADS",
         "1"
-    )
+    ),
+    # Minutes between Arr API checks for new imports/upgrades (Radarr) and
+    # newly added series (Sonarr). 0 disables the watcher.
+    "watch_interval_minutes": os.environ.get("WATCH_INTERVAL_MINUTES", "5")
 }
 
 SETTINGS_LOCK = threading.RLock()
@@ -100,6 +114,8 @@ BATCH_LOCK = threading.RLock()
 LOCAL_ACTIVITY_LOCK = threading.RLock()
 YTDLP_STATUS_LOCK = threading.RLock()
 BACKGROUND_JOBS_LOCK = threading.RLock()
+WEBHOOK_STATUS_LOCK = threading.RLock()
+WATCH_LOCK = threading.RLock()
 BACKGROUND_JOBS_STARTED = False
 
 
@@ -298,6 +314,10 @@ def validate_settings_scalars(values):
     if not max_downloads.isdigit() or not 1 <= int(max_downloads) <= 4:
         raise ValueError("Concurrent downloads must be between 1 and 4.")
 
+    watch_interval = str(values.get("watch_interval_minutes", "5")).strip()
+    if not watch_interval.isdigit() or not 0 <= int(watch_interval) <= 1440:
+        raise ValueError("Watch interval must be between 0 (off) and 1440 minutes.")
+
     trailer_folder = str(values.get("trailer_folder", "")).strip()
     if trailer_folder:
         if os.path.isabs(trailer_folder):
@@ -324,6 +344,7 @@ def validate_settings_scalars(values):
         "media_root": media_root,
         "video_quality": quality,
         "max_concurrent_downloads": max_downloads,
+        "watch_interval_minutes": watch_interval,
         "trailer_folder": trailer_folder,
         "filename_template": filename_template,
         "preferred_terms": str(values.get("preferred_terms", "")).strip(),
@@ -700,20 +721,56 @@ def score_candidate(video, preferred_terms):
     return score, matched
 
 
-def fetch_and_score(tmdb_id, media_type):
+def tmdb_video_languages(tmdb_id, media_type):
+    """Languages to request from TMDB /videos.
+
+    Without include_video_language TMDB only returns English videos, which
+    misses most trailers for anime and other non-English titles. Always ask
+    for English, the title's original language and untagged (null) videos.
+    """
+    languages = ["en"]
     try:
-        data = tmdb_get(f"/{media_type}/{tmdb_id}/videos")
+        details = tmdb_get(f"/{media_type}/{tmdb_id}")
+        original = str(details.get("original_language") or "").strip().lower()
+        if re.fullmatch(r"[a-z]{2}", original) and original not in languages:
+            languages.append(original)
+    except Exception as e:
+        log.warning(f"TMDB details lookup failed, using English only: {e}")
+    languages.append("null")
+    return languages
+
+
+def fetch_and_score(tmdb_id, media_type, info=None):
+    info = info if info is not None else {}
+    languages = tmdb_video_languages(tmdb_id, media_type)
+    info["languages"] = [lang for lang in languages if lang != "null"]
+
+    try:
+        data = tmdb_get(
+            f"/{media_type}/{tmdb_id}/videos",
+            {
+                "language": "en-US",
+                "include_video_language": ",".join(languages)
+            }
+        )
     except Exception as e:
         log.error(f"TMDB videos request failed: {e}")
+        info["error"] = str(e)
         return [], []
 
+    all_videos = data.get("results", [])
     results = [
-        r for r in data.get("results", [])
+        r for r in all_videos
         if r.get("site") == "YouTube"
         and r.get("type") in ("Trailer", "Teaser")
     ]
+    info["total_videos"] = len(all_videos)
+    info["trailer_count"] = len(results)
 
-    log.info(f"TMDB returned {len(results)} YouTube trailer/teaser(s).")
+    log.info(
+        f"TMDB returned {len(results)} YouTube trailer/teaser(s) "
+        f"of {len(all_videos)} video(s) [{', '.join(info['languages'])}]."
+    )
 
     preferred_terms = cfg_list("preferred_terms")
     excluded_terms = cfg_list("excluded_terms")
@@ -744,14 +801,17 @@ def fetch_and_score(tmdb_id, media_type):
                 "name": name,
                 "type": video.get("type", ""),
                 "official": bool(video.get("official", False)),
+                "language": video.get("iso_639_1") or "",
                 "matched_terms": matched
             })
 
+    # Equal scores: prefer full trailers, then official, then English.
     scored.sort(
         key=lambda item: (
             item["score"],
             item.get("type") == "Trailer",
-            item.get("official", False)
+            item.get("official", False),
+            item.get("language") == "en"
         ),
         reverse=True
     )
@@ -972,6 +1032,13 @@ def start_background_jobs():
         daemon=True
     )
     thread.start()
+
+    watcher = threading.Thread(
+        target=arr_watch_monitor,
+        name="arr-watcher",
+        daemon=True
+    )
+    watcher.start()
 
 
 def update_ytdlp_override():
@@ -1385,7 +1452,8 @@ def context_for_item(item, library=None, trigger="Web UI"):
 
 # ── Core grab logic ──────────────────────────────────────────────────────
 
-def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False, context=None):
+def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
+                context=None, skip_existing=False):
     context = context or {}
     log.info(
         f"{title} ({year}) — TMDB {tmdb_id}"
@@ -1397,14 +1465,40 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False, co
     except ValueError as e:
         return {"status": "rejected", "reason": str(e)}, 400
 
-    scored, excluded = fetch_and_score(tmdb_id, media_type)
+    # Never create the media folder itself. If the Arr hasn't imported
+    # anything yet, writing here would create an orphan folder (owned by the
+    # container user) that the Arr may later fail to import into or ignore.
+    if not os.path.isdir(folder_path):
+        log.info(f"Media folder does not exist yet, skipping: {folder_path}")
+        return {"status": "folder_missing", "folder": folder_path}, 200
+
+    if skip_existing and trailer_exists(folder_path, title, year):
+        log.info(f"Trailer already exists, skipping: {title} ({year})")
+        return {"status": "exists"}, 200
+
+    fetch_info = {}
+    scored, excluded = fetch_and_score(tmdb_id, media_type, fetch_info)
 
     if not scored:
+        langs = ", ".join(fetch_info.get("languages", ["en"]))
+        if fetch_info.get("error"):
+            reason = f"TMDB request failed: {fetch_info['error']}"
+        elif not fetch_info.get("trailer_count"):
+            reason = (
+                f"TMDB lists no YouTube trailers or teasers for this title "
+                f"(languages checked: {langs}). Use Force with a YouTube ID."
+            )
+        else:
+            reason = (
+                f"TMDB has {fetch_info['trailer_count']} trailer/teaser(s), "
+                f"but none passed the current rules ({len(excluded)} excluded)."
+            )
+
         if not dry_run:
             notify(
                 16776960,
                 f"⚠️ No matching trailers — {title} ({year})",
-                "No suitable TMDB trailer/teaser matched the current rules."
+                reason
             )
             record_activity({
                 **context,
@@ -1413,11 +1507,11 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False, co
                 "title": title,
                 "year": year,
                 "tmdb_id": tmdb_id,
-                "detail": "No suitable trailer found.",
+                "detail": reason,
                 "excluded": excluded[:10]
             })
 
-        return {"status": "no_trailer", "excluded": excluded}, 200
+        return {"status": "no_trailer", "reason": reason, "excluded": excluded}, 200
 
     out = out_path(folder_path, title, year)
     best = scored[0]
@@ -1472,7 +1566,8 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False, co
             "trailer_name": best["name"],
             "score": best["score"],
             "duration": result["duration"],
-            "detail": "Trailer downloaded.",
+            "saved_to": trailer_path,
+            "detail": f"Trailer downloaded to {trailer_path}",
             "excluded": excluded[:10]
         })
 
@@ -1825,6 +1920,289 @@ def start_batch(tasks, scope):
     return True
 
 
+# ── Arr watcher ───────────────────────────────────────────────────────────
+#
+# Polls each configured Arr connection through its API, so automatic grabs
+# work without a webhook:
+#
+# - Radarr: a movie's file ID appearing (import) or changing (upgrade).
+# - Sonarr: a series ID appearing (series added). Its folder may not exist
+#   yet, so it stays pending and is retried until the folder appears.
+#
+# The first check of a connection only records a baseline. Nothing already in
+# the library is grabbed — use Grab all missing for that.
+#
+# Webhooks keep working alongside this. Whichever runs second finds the
+# trailer already present and skips quietly.
+
+def watch_interval_seconds():
+    try:
+        minutes = int(str(cfg("watch_interval_minutes")))
+    except (TypeError, ValueError):
+        minutes = 5
+    return max(0, min(1440, minutes)) * 60
+
+
+def load_watch_state():
+    with WATCH_LOCK:
+        try:
+            with open(WATCH_STATE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+        except FileNotFoundError:
+            return {}
+        except Exception as e:
+            log.warning(f"Could not read watcher state: {e}")
+            return {}
+
+
+def save_watch_state(state):
+    with WATCH_LOCK:
+        try:
+            os.makedirs(os.path.dirname(WATCH_STATE_FILE) or ".", exist_ok=True)
+            tmp = f"{WATCH_STATE_FILE}.tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(state, f, ensure_ascii=False)
+            os.replace(tmp, WATCH_STATE_FILE)
+        except Exception as e:
+            log.warning(f"Could not save watcher state: {e}")
+
+
+def radarr_file_id(movie):
+    movie_file = movie.get("movieFile")
+    if isinstance(movie_file, dict) and movie_file.get("id"):
+        return int(movie_file["id"])
+    try:
+        return int(movie.get("movieFileId") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def library_for_item(connection_id, item_path):
+    for library in get_libraries():
+        if (
+            library.get("connection_id") == connection_id
+            and library_owns_item(library, item_path)
+        ):
+            return library
+    return None
+
+
+def watcher_grab(connection, item, reason):
+    """Grab one item found by the watcher. Returns the result status."""
+
+    library = library_for_item(connection.get("id"), item.get("path", ""))
+    if not library:
+        log.info(f"Watcher: {item['title']} is outside every library, skipping.")
+        return "outside_library"
+
+    context = context_for_item(item, library, "API watcher")
+    context["watch_reason"] = reason
+
+    if item["source"] == "radarr":
+        tmdb_id = item.get("tmdb_id")
+        media_type = "movie"
+    else:
+        tvdb_id = item.get("tvdb_id")
+        tmdb_id = tvdb_to_tmdb(tvdb_id) if tvdb_id else None
+        media_type = "tv"
+
+    if not tmdb_id:
+        record_activity({
+            **context,
+            "status": "warning",
+            "action": "grab",
+            "title": item["title"],
+            "year": item["year"],
+            "detail": f"{reason}: no TMDB match for this title."
+        })
+        return "no_tmdb_match"
+
+    log.info(f"Watcher: {reason} — {item['title']} ({item['year']})")
+    result, _code = handle_grab(
+        item["title"], item["year"], tmdb_id, media_type, item["path"],
+        context=context, skip_existing=True
+    )
+    return result.get("status", "unknown")
+
+
+def watch_radarr(connection, conn_state, first_run):
+    movies = arr_get(connection, "/api/v3/movie")
+    known = conn_state.get("movies", {})
+    current = {}
+    triggers = []
+
+    for movie in movies:
+        movie_id = str(movie.get("id"))
+        file_id = radarr_file_id(movie)
+        current[movie_id] = file_id
+
+        if first_run or not file_id:
+            continue
+
+        previous = known.get(movie_id, 0)
+        if file_id == previous:
+            continue
+
+        reason = "Imported" if not previous else "Upgraded"
+        triggers.append((normalize_radarr(movie, connection), reason))
+
+    with_files = [m for m in movies if m.get("hasFile")]
+    if with_files and not any(radarr_file_id(m) for m in with_files):
+        raise RuntimeError(
+            "Radarr returned movies with files but no file IDs; "
+            "this Radarr version isn't supported by the watcher. Use the webhook."
+        )
+
+    conn_state["movies"] = current
+    return triggers
+
+
+def watch_sonarr(connection, conn_state, first_run):
+    series_list = arr_get(connection, "/api/v3/series")
+    known = set(str(x) for x in conn_state.get("series", []))
+    pending = dict(conn_state.get("pending", {}))
+    current = []
+    triggers = []
+    now = dt.datetime.now(dt.timezone.utc)
+    by_id = {}
+
+    for series in series_list:
+        series_id = str(series.get("id"))
+        current.append(series_id)
+        by_id[series_id] = series
+
+        if not first_run and series_id not in known:
+            pending[series_id] = utc_now()
+
+    for series_id, since in list(pending.items()):
+        series = by_id.get(series_id)
+        if not series:
+            pending.pop(series_id, None)  # removed from Sonarr
+            continue
+
+        item = normalize_sonarr(series, connection)
+        if media_folder_exists(item.get("path", "")):
+            pending.pop(series_id, None)
+            triggers.append((item, "Series added"))
+            continue
+
+        try:
+            age = now - dt.datetime.fromisoformat(since)
+        except (TypeError, ValueError):
+            age = dt.timedelta(0)
+        if age > dt.timedelta(days=WATCH_PENDING_DAYS):
+            pending.pop(series_id, None)
+            record_activity({
+                "source": "API watcher",
+                "arr_type": "sonarr",
+                "connection_id": connection.get("id", ""),
+                "connection": connection.get("name", ""),
+                "status": "warning",
+                "action": "grab",
+                "title": item["title"],
+                "year": item["year"],
+                "detail": (
+                    f"Series folder never appeared within {WATCH_PENDING_DAYS} "
+                    f"days: {item.get('path', '')}. Stopped waiting."
+                )
+            })
+
+    conn_state["series"] = current
+    conn_state["pending"] = pending
+    return triggers
+
+
+def watch_connection(connection, state):
+    connection_id = connection.get("id")
+    conn_state = state.setdefault(connection_id, {})
+    first_run = not conn_state.get("initialized")
+    source = connection.get("type")
+
+    try:
+        if source == "radarr":
+            triggers = watch_radarr(connection, conn_state, first_run)
+        elif source == "sonarr":
+            triggers = watch_sonarr(connection, conn_state, first_run)
+        else:
+            return
+    except Exception as e:
+        conn_state["last_check"] = utc_now()
+        conn_state["last_error"] = str(e)[:300]
+        log.warning(f"Watcher: {connection.get('name', connection_id)} check failed: {e}")
+        return
+
+    conn_state["initialized"] = True
+    conn_state["last_check"] = utc_now()
+    conn_state["last_error"] = ""
+
+    if first_run:
+        log.info(
+            f"Watcher: baseline recorded for {connection.get('name', connection_id)}. "
+            "Existing items are not grabbed."
+        )
+        return
+
+    # Save the new baseline before downloading, so a crash mid-download
+    # doesn't re-trigger everything on restart.
+    save_watch_state(state)
+
+    for item, reason in triggers:
+        try:
+            status = watcher_grab(connection, item, reason)
+        except Exception as e:
+            log.error(f"Watcher grab failed for {item.get('title')}: {e}")
+            status = "error"
+        conn_state["last_trigger"] = {
+            "time": utc_now(),
+            "event": reason,
+            "title": item.get("title", ""),
+            "year": item.get("year", ""),
+            "status": status
+        }
+        save_watch_state(state)
+
+
+def run_watch_cycle(force=False):
+    interval = watch_interval_seconds()
+    if not interval and not force:
+        return
+
+    state = load_watch_state()
+    configured = [c for c in get_connections() if c.get("api_key")]
+    configured_ids = {c.get("id") for c in configured}
+
+    # Forget connections that were removed from Settings.
+    for connection_id in list(state.keys()):
+        if connection_id not in configured_ids:
+            state.pop(connection_id, None)
+
+    now = time.time()
+    for connection in configured:
+        conn_state = state.get(connection.get("id"), {})
+        last = conn_state.get("last_check")
+        if last and not force and conn_state.get("initialized"):
+            try:
+                elapsed = now - dt.datetime.fromisoformat(last).timestamp()
+                if elapsed < interval:
+                    continue
+            except (TypeError, ValueError):
+                pass
+        watch_connection(connection, state)
+        save_watch_state(state)
+
+
+def arr_watch_monitor():
+    # Let the web server come up first.
+    time.sleep(20)
+    while True:
+        try:
+            run_watch_cycle()
+        except Exception as e:
+            log.warning(f"Watcher cycle failed: {e}")
+        time.sleep(30)
+
+
 # ── Settings helpers ──────────────────────────────────────────────────────
 
 SECRET_FIELDS = {"tmdb_api_key", "discord_webhook_url"}
@@ -1848,6 +2226,10 @@ def collect_settings_form(form):
         "max_concurrent_downloads": form.get(
             "max_concurrent_downloads",
             cfg("max_concurrent_downloads")
+        ),
+        "watch_interval_minutes": form.get(
+            "watch_interval_minutes",
+            cfg("watch_interval_minutes")
         )
     }
     scalar_values = validate_settings_scalars(scalar_values)
@@ -1877,13 +2259,24 @@ def configured_state():
     }
 
 
-def connection_public(connection):
+def connection_public(connection, webhook_status=None, watch_state=None):
+    connection_id = connection.get("id", "")
+    watch = (watch_state or {}).get(connection_id) or {}
     return {
-        "id": connection.get("id", ""),
+        "id": connection_id,
         "name": connection.get("name", ""),
         "type": connection.get("type", "radarr"),
         "url": connection.get("url", ""),
-        "configured": bool(connection.get("url") and connection.get("api_key"))
+        "configured": bool(connection.get("url") and connection.get("api_key")),
+        "saved": True,
+        "last_webhook": (webhook_status or {}).get(connection_id),
+        "watch": {
+            "initialized": bool(watch.get("initialized")),
+            "last_check": watch.get("last_check", ""),
+            "last_error": watch.get("last_error", ""),
+            "last_trigger": watch.get("last_trigger"),
+            "pending": len(watch.get("pending", {}) or {})
+        }
     }
 
 
@@ -2090,6 +2483,9 @@ def settings_page():
             message = str(e)
             message_type = "error"
 
+    webhook_status = load_webhook_status()
+    watch_state = load_watch_state()
+
     return render_template(
         "settings.html",
         libraries=nav_libraries(),
@@ -2100,9 +2496,14 @@ def settings_page():
             "trailer_folder": cfg("trailer_folder"),
             "filename_template": cfg("filename_template"),
             "video_quality": cfg("video_quality"),
-            "max_concurrent_downloads": cfg("max_concurrent_downloads")
+            "max_concurrent_downloads": cfg("max_concurrent_downloads"),
+            "watch_interval_minutes": cfg("watch_interval_minutes")
         },
-        connections=[connection_public(c) for c in get_connections()],
+        connections=[
+            connection_public(c, webhook_status, watch_state)
+            for c in get_connections()
+        ],
+        generic_webhook=load_webhook_status().get("generic"),
         library_settings=[library_public(lib) for lib in get_libraries()],
         configured=configured_state(),
         message=message,
@@ -2110,7 +2511,8 @@ def settings_page():
         settings_file=SETTINGS_FILE,
         app_version=APP_VERSION,
         ytdlp=ytdlp_ui_status(),
-        batch=batch_snapshot()
+        batch=batch_snapshot(),
+        watch_interval=watch_interval_seconds() // 60
     )
 
 
@@ -2266,14 +2668,159 @@ def match_library_for_path(connection_id, folder_path):
     return candidates[0] if candidates else None
 
 
+# Radarr/Sonarr "On File Import" and "On File Upgrade" both send eventType
+# "Download". Sonarr "On Series Add" (SeriesAdd) is also acted on: a series
+# trailer doesn't depend on episodes, so it only needs the folder to exist
+# (Sonarr's "Create empty series folders"). If it doesn't exist yet, the first
+# episode import (Download) picks it up.
+WEBHOOK_ACTION_EVENTS = {"Download", "SeriesAdd"}
+
+# Events that fire before anything is on disk. Acknowledged, never acted on.
+WEBHOOK_EARLY_EVENTS = {"Grab", "MovieAdded"}
+
+
+def webhook_folder_missing(title, year, folder_path, event_type, arr_type):
+    """Record a skipped webhook so it shows up in Activity instead of vanishing."""
+    hint = (
+        "Will retry on the first episode import if Sonarr sends On Import."
+        if arr_type == "sonarr" else
+        "Check that Trailarr's media mount matches Radarr's path."
+    )
+    record_activity({
+        "source": "Webhook",
+        "arr_type": arr_type,
+        "status": "warning",
+        "action": "grab",
+        "title": title,
+        "year": year,
+        "detail": (
+            f"{event_type or 'Webhook'}: folder not found inside Trailarr: "
+            f"{folder_path}. {hint}"
+        )
+    })
+    return jsonify({"status": "folder_missing", "folder": folder_path}), 200
+
+
+def load_webhook_status():
+    with WEBHOOK_STATUS_LOCK:
+        try:
+            with open(WEBHOOK_STATUS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+        except FileNotFoundError:
+            return {}
+        except Exception as e:
+            log.warning(f"Could not read webhook status: {e}")
+            return {}
+
+
+def save_webhook_status(key, entry):
+    with WEBHOOK_STATUS_LOCK:
+        data = load_webhook_status()
+        data[key] = entry
+        try:
+            os.makedirs(os.path.dirname(WEBHOOK_STATUS_FILE) or ".", exist_ok=True)
+            tmp = f"{WEBHOOK_STATUS_FILE}.tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            os.replace(tmp, WEBHOOK_STATUS_FILE)
+        except Exception as e:
+            log.warning(f"Could not save webhook status: {e}")
+
+
+def webhook_payload_title(payload):
+    item = payload.get("movie") or payload.get("series") or {}
+    if not isinstance(item, dict):
+        item = {}
+    title = item.get("title") or payload.get("title") or ""
+    year = item.get("year") or payload.get("year") or ""
+    return str(title), year
+
+
+# Webhook outcomes that don't write their own Activity entry but mean the
+# trailer was NOT grabbed. Recorded so nothing fails silently.
+WEBHOOK_UNLOGGED_FAILURES = {
+    "rejected": "Path is outside the configured media root.",
+    "no_tmdb_match": "No TMDB match for this title.",
+    "connection_missing": "Webhook URL points to a connection that no longer exists.",
+    "unrecognized": "Payload had no movie or series.",
+}
+
+
+def record_webhook(connection_id, payload, response, code, save_status=True):
+    event_type = str(payload.get("eventType", "") or "") or "manual"
+    title, year = webhook_payload_title(payload)
+    try:
+        body = response.get_json(silent=True) or {}
+    except Exception:
+        body = {}
+    status = str(body.get("status", "") or "")
+    if status == "ignored" and body.get("reason") == "unrecognized payload":
+        status = "unrecognized"
+
+    label = f"{title} ({year})" if title else "no title"
+    log.info(
+        f"Webhook received: connection={connection_id or 'generic'} "
+        f"event={event_type} item={label} -> {status or code}"
+    )
+
+    if save_status:
+        save_webhook_status(connection_id or "generic", {
+            "time": utc_now(),
+            "event": event_type,
+            "title": title,
+            "year": year,
+            "status": status or str(code)
+        })
+
+    if status in WEBHOOK_UNLOGGED_FAILURES:
+        detail = WEBHOOK_UNLOGGED_FAILURES[status]
+        if body.get("reason") and status == "rejected":
+            detail = f"{detail} {body['reason']}"
+        record_activity({
+            "source": "Webhook",
+            "connection_id": connection_id or "",
+            "status": "warning",
+            "action": "grab",
+            "title": title or "Unknown",
+            "year": year,
+            "detail": f"{event_type}: {detail}"
+        })
+
+
 def webhook_handler(connection_id=None):
     payload = request.get_json(force=True, silent=True) or {}
-    event_type = payload.get("eventType", "")
+    if not isinstance(payload, dict):
+        payload = {}
+    result = _webhook_handler(payload, connection_id)
+    response, code = result if isinstance(result, tuple) else (result, 200)
+    try:
+        record_webhook(connection_id, payload, response, code)
+    except Exception as e:
+        log.warning(f"Could not record webhook: {e}")
+    return response, code
+
+
+def _webhook_handler(payload, connection_id=None):
+    event_type = str(payload.get("eventType", "") or "")
     dry_run = bool(payload.get("dry_run", False))
 
     if event_type == "Test":
         notify(3066993, "🎬 Trailarr Parrk connected", "Webhook connection confirmed.")
         return jsonify({"status": "test_ok"})
+
+    # Hand-crafted payloads (curl, scripts) have no eventType and keep the old
+    # behaviour. Real Arr payloads are filtered by event.
+    if event_type and event_type not in WEBHOOK_ACTION_EVENTS:
+        if event_type in WEBHOOK_EARLY_EVENTS:
+            log.info(f"Webhook {event_type}: waiting for import before grabbing trailer.")
+            return jsonify({
+                "status": "deferred",
+                "event": event_type,
+                "reason": "Trailer is grabbed on import (Download event)."
+            }), 200
+        log.info(f"Webhook {event_type}: ignored.")
+        return jsonify({"status": "ignored", "event": event_type}), 200
 
     connection = get_connection(connection_id) if connection_id else None
 
@@ -2307,7 +2854,13 @@ def webhook_handler(connection_id=None):
 
     if "movie" in payload:
         movie = payload["movie"]
-        folder_path = movie.get("folderPath", "")
+        folder_path = movie.get("folderPath", "") or movie.get("path", "")
+
+        if not media_folder_exists(folder_path):
+            return webhook_folder_missing(
+                movie.get("title", "Unknown"), movie.get("year", ""),
+                folder_path, event_type, "radarr"
+            )
 
         library = match_library_for_path(connection_id, folder_path) if connection_id else None
         context = {
@@ -2326,7 +2879,8 @@ def webhook_handler(connection_id=None):
             "movie",
             folder_path,
             dry_run=dry_run,
-            context=context
+            context=context,
+            skip_existing=bool(event_type)
         )
         return jsonify(result), code
 
@@ -2335,7 +2889,10 @@ def webhook_handler(connection_id=None):
         folder_path = series.get("path", "")
 
         if not media_folder_exists(folder_path):
-            return jsonify({"status": "folder_missing"}), 200
+            return webhook_folder_missing(
+                series.get("title", "Unknown"), series.get("year", ""),
+                folder_path, event_type, "sonarr"
+            )
 
         tvdb_id = series.get("tvdbId")
         tmdb_id = tvdb_to_tmdb(tvdb_id) if tvdb_id else None
@@ -2359,7 +2916,8 @@ def webhook_handler(connection_id=None):
             "tv",
             folder_path,
             dry_run=dry_run,
-            context=context
+            context=context,
+            skip_existing=bool(event_type)
         )
         return jsonify(result), code
 
@@ -2374,7 +2932,16 @@ def hook():
 @app.route("/hook/<connection_id>", methods=["POST"])
 def hook_connection(connection_id):
     if not get_connection(connection_id):
-        return jsonify({"status": "connection_missing"}), 404
+        payload = request.get_json(force=True, silent=True) or {}
+        response = jsonify({"status": "connection_missing"})
+        try:
+            record_webhook(
+                connection_id, payload if isinstance(payload, dict) else {},
+                response, 404, save_status=False
+            )
+        except Exception as e:
+            log.warning(f"Could not record webhook: {e}")
+        return response, 404
     return webhook_handler(connection_id)
 
 

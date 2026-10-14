@@ -1,5 +1,31 @@
 # Trailarr Parrk — Changelog
 
+## v0.6.2 — Watcher and webhook fixes
+
+### Added
+- **Watch Radarr/Sonarr** through the API connection, no webhook needed. Radarr: grabs on import and upgrade (detected by the movie's file ID appearing or changing). Sonarr: grabs when a series is added; if its folder doesn't exist yet it waits (up to 30 days) and grabs once it appears.
+- New setting `Watch Radarr/Sonarr` (Performance), minutes between checks. Default 5, `0` turns it off. Env: `WATCH_INTERVAL_MINUTES`.
+- The first check of a connection records a baseline and grabs nothing. Use Grab all missing for older titles.
+- Each connection in Settings shows watcher status: last check, last triggered title and outcome, series waiting for a folder, or the last error.
+- Webhooks and the watcher can run together; the second one finds the trailer and skips.
+- Settings shows each Arr connection's webhook URL with a Copy button.
+- Each connection shows when its last webhook arrived, the event, the title and the outcome. If no webhook has ever arrived and watching is off, it warns that automatic grabs aren't set up.
+- Every incoming webhook is logged to the container log (`Webhook received: connection=… event=… item=… -> status`).
+- Webhook outcomes that used to return silently (`rejected`, `no_tmdb_match`, unknown connection ID, unrecognized payload) are now recorded in Activity.
+
+### Fixed
+- Fixed Radarr webhooks reporting `Trailer downloaded` for newly added films without a usable trailer. `On Movie Added` and `On Grab` fire before the movie folder exists; Trailarr created the folder itself and wrote the trailer into it before Radarr had imported anything.
+- Webhooks now only act on `Download` (Radarr/Sonarr `On File Import` / `On File Upgrade`) and Sonarr `SeriesAdd`. `Grab` and `MovieAdded` return `deferred`; all other events (`Rename`, deletes, health, etc.) return `ignored`.
+- Sonarr `On Series Add` grabs immediately when the series folder exists. If it doesn't, the first episode import picks it up (requires `On Import`).
+- Webhooks skipped because the media folder isn't visible inside Trailarr are now logged in Activity instead of disappearing silently.
+- Successful grabs now record the full saved path in Activity.
+- Radarr webhooks now require the movie folder to exist, matching Sonarr webhooks and manual grabs.
+- Trailarr never creates a media folder; grabs into a missing folder return `folder_missing`.
+- Webhook-triggered grabs skip titles that already have a trailer, so upgrades don't re-download it.
+- Hand-crafted webhook payloads without `eventType` keep the previous behaviour.
+- Fixed missing trailers for anime and other non-English titles. TMDB `/videos` only returns English videos unless asked otherwise; Trailarr now requests English, the title's original language and untagged videos. English wins ties.
+- `No matching trailers` notifications now say whether TMDB has no trailers at all (use Force with a YouTube ID) or whether candidates were filtered out by the current rules.
+
 ## v0.6.1 — Batch control and diagnostics
 
 ### Added
