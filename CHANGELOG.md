@@ -1,5 +1,21 @@
 # Trailarr Parrk — Changelog
 
+## v0.7.0 — Existing-trailer detection
+
+### Changed
+- **Missing now means no trailer at all.** Any trailer file counts, whatever it's named: videos in a `trailers`/`trailer` subfolder (any case) or the configured trailer folder, and videos in the media folder whose name ends in `trailer` (`-trailer`, `.trailer`, ` trailer`, `trailer`). Root-level files over 2 GB are ignored. Previously only the exact configured folder + filename counted, so changing the naming settings swapped titles between Missing and Existing.
+- Automatic grabs (watcher, webhook, Grab all missing) skip any title with a trailer under any name.
+- Delete removes all detected trailer files for the title.
+- Trailers not downloaded by Trailarr show as "Found on disk" instead of "Source information unknown".
+- Titles with characters that can't be in filenames are cleaned the Radarr/Sonarr way instead of with underscores: `Avengers: Infinity War` → `Avengers - Infinity War`, `Face/Off` → `Face-Off`, and `* ? " < > |` are dropped. Existing underscore-named trailers show as *Name differs from settings*; **Rename N to current naming** fixes them.
+
+### Added
+- Existing tab marks each title ✓ Matches naming, ⚠ Name differs from settings, or ⚠ N trailer files, with a **Needs attention** filter and a count on the tab.
+- **Rename to naming** per title and **Rename N to current naming** per library: move trailers to the current folder/filename settings without re-downloading. Keeps the file's extension and Trailarr's metadata, never overwrites, and removes the old trailer folder if it ends up empty.
+- **Keep only this** for folders with several trailer files.
+- **Replace** and **Force** remove old trailer files only after the new download succeeds. A failed replace keeps everything.
+- File actions only accept files Trailarr itself detected as trailers, so they can never touch a main media file.
+
 ## v0.6.4 — YouTube search fallback
 
 ### Added

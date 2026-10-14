@@ -2,9 +2,9 @@
 
 Downloads local trailers for Radarr/Sonarr libraries using TMDB + yt-dlp.
 
-Current release: **v0.6.4** · Source, issues and releases: [gitea.icarus-ii.com/izsez/trailarr-parrk](https://gitea.icarus-ii.com/izsez/trailarr-parrk)
+Current release: **v0.7.0**
 
-v0.6.4 adds an optional YouTube search fallback for titles TMDB has no working trailer for. v0.6.3 tries the next TMDB trailer when YouTube says a video is unavailable, falls back to season trailers for shows with no show-level trailer (first season by default, configurable), and ranks later-season trailers behind spoiler-free ones. v0.6.2 added a Radarr/Sonarr API watcher (no webhook needed), fixes webhooks reporting trailers as downloaded for newly added films, and finds original-language trailers for anime and other non-English titles. v0.6.1 added safe batch cancellation, automatic daily yt-dlp update checks, clearer configured-state handling and fixes trailer finalization for paths containing characters such as `[tmdbid-123456]`.
+v0.7.0 detects existing trailers under any name or folder, so Missing only lists titles with no trailer at all, and adds rename/keep/replace actions for them. v0.6.4 added an optional YouTube search fallback for titles TMDB has no working trailer for. v0.6.3 tries the next TMDB trailer when YouTube says a video is unavailable, falls back to season trailers for shows with no show-level trailer (first season by default, configurable), and ranks later-season trailers behind spoiler-free ones. v0.6.2 added a Radarr/Sonarr API watcher (no webhook needed), fixes webhooks reporting trailers as downloaded for newly added films, and finds original-language trailers for anime and other non-English titles. v0.6.1 added safe batch cancellation, automatic daily yt-dlp update checks, clearer configured-state handling and fixes trailer finalization for paths containing characters such as `[tmdbid-123456]`.
 
 ---
 
@@ -86,7 +86,7 @@ On Unraid, `99:100` (`nobody:users`) is a common mapping, but use the IDs that m
 First install:
 
 ```bash
-git clone https://gitea.icarus-ii.com/izsez/trailarr-parrk.git
+git clone https://YOUR-GIT-HOST/OWNER/trailarr-parrk.git
 cd trailarr-parrk
 docker compose up -d --build
 ```
@@ -215,9 +215,18 @@ Library
 └─ Existing
 ```
 
+### What counts as a trailer
+
+A title has a trailer when its media folder contains **any** trailer file, whatever it's called:
+
+- any video file (`.mkv`, `.mp4`, `.m4v`, `.avi`, `.mov`, `.webm`) inside a `trailers` or `trailer` subfolder (any capitalisation) or your configured trailer folder
+- a video file in the media folder itself whose name ends in `trailer` — `-trailer.mkv`, `.trailer.mkv`, `Title trailer.mp4`, `trailer.mkv` (files over 2 GB are ignored there, so a main movie file is never mistaken for a trailer)
+
+Changing the folder or filename settings never moves titles between Missing and Existing.
+
 ### Missing
 
-Shows only usable titles without the expected trailer file.
+Shows usable titles with no trailer file at all.
 
 Radarr movies are only shown after the movie file exists. Sonarr series are shown once their mapped series folder exists.
 
@@ -230,24 +239,25 @@ Actions:
 
 ### Existing
 
-Shows titles that already have a local trailer.
+Shows titles that have a trailer. Each is marked:
+
+- **✓ Matches naming** — at your configured folder and filename
+- **⚠ Name differs from settings** — a trailer exists under another name or folder
+- **⚠ N trailer files** — several trailers in one folder
+
+**Needs attention** filters to the flagged ones.
 
 Actions:
 
-- **Replace** — run automatic selection again
-- **Force** — replace with a specific YouTube ID
-- **Delete** — remove the trailer so the title returns to Missing
+- **Rename to naming** — move a differently named trailer to your current folder/filename (keeps its extension). Nothing is downloaded or deleted.
+- **Rename N to current naming** — the same for every flagged single-file title in the library. Titles with several files are skipped.
+- **Keep only this** — for folders with several trailers: keep one, delete the others.
+- **Replace** — download a new trailer. Old trailer files are removed **only if the download succeeds**; otherwise everything stays as it was.
+- **Force** — replace with a specific YouTube ID (old files removed after success)
+- **Delete** — remove all trailer files so the title returns to Missing
 - Search and sort
 
-For trailers downloaded by v0.6.0+, Trailarr stores metadata such as:
-
-- selected TMDB video name
-- YouTube ID
-- score
-- timestamp
-- automatic/manual source
-
-Older existing trailers still appear, but display `Source information unknown` because Trailarr did not create metadata for them.
+Trailarr stores metadata for trailers it downloads (TMDB video name, YouTube ID, score, timestamp, source). Renames keep that metadata. Trailers it didn't download show as **Found on disk**.
 
 ---
 

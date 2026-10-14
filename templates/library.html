@@ -56,6 +56,20 @@
     .force { display:flex; gap:6px; }
     .force input { width:150px; }
     .empty { padding:24px 16px; color:var(--muted); }
+    .badge { display:inline-block; font-size:11px; font-weight:650; padding:2px 7px; border-radius:999px; border:1px solid var(--border); margin-left:8px; vertical-align:middle; }
+    .badge.ok { color:var(--accent); border-color:#2e725c; }
+    .badge.warn { color:var(--warn); border-color:#6b5a26; }
+    .files { margin-top:8px; display:flex; flex-direction:column; gap:6px; }
+    .file { display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap; padding:7px 9px; border:1px solid var(--border); border-radius:7px; background:#13161c; font-size:12px; }
+    .file .fname { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; word-break:break-all; }
+    .file .fmeta { color:var(--muted); }
+    .file .fmeta.warn { color:var(--warn); }
+    .file form { margin:0; }
+    .file button { padding:4px 8px; font-size:12px; }
+    .filters { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:-6px 0 14px; font-size:13px; }
+    .filters a { padding:5px 10px; border-radius:999px; border:1px solid var(--border); color:var(--muted); }
+    .filters a.active { color:var(--text); border-color:#2e725c; background:#163c30; }
+    .filters .hint { color:var(--muted); }
     @media (max-width:800px) {
       .item { grid-template-columns:1fr; }
       .buttons { justify-content:flex-start; }
@@ -84,8 +98,16 @@
 
   <div class="tabs">
     <a class="{{ 'active' if view == 'missing' else '' }}" href="{{ url_for('library_page', library_id=library.id, view='missing') }}">Missing {{ missing_count }}</a>
-    <a class="{{ 'active' if view == 'existing' else '' }}" href="{{ url_for('library_page', library_id=library.id, view='existing') }}">Existing {{ existing_count }}</a>
+    <a class="{{ 'active' if view == 'existing' else '' }}" href="{{ url_for('library_page', library_id=library.id, view='existing') }}">Existing {{ existing_count }}{% if attention_count %} · ⚠ {{ attention_count }}{% endif %}</a>
   </div>
+
+  {% if view == 'existing' %}
+    <div class="filters">
+      <a class="{{ 'active' if filter_mode != 'attention' else '' }}" href="{{ url_for('library_page', library_id=library.id, view='existing') }}">All {{ existing_count }}</a>
+      <a class="{{ 'active' if filter_mode == 'attention' else '' }}" href="{{ url_for('library_page', library_id=library.id, view='existing', filter='attention') }}">Needs attention {{ attention_count }}</a>
+      <span class="hint">Any trailer file counts as existing — names that differ from your settings or folders with several trailers are flagged here.</span>
+    </div>
+  {% endif %}
 
   {% if message %}<div class="message">{{ message }}</div>{% endif %}
   {% if error and error != 'Not configured' %}<div class="error">{{ error }}</div>{% endif %}
@@ -125,6 +147,12 @@
       <form action="{{ url_for('library_grab_all', library_id=library.id) }}" method="post">
         <button class="primary" type="submit">Grab all missing</button>
       </form>
+    {% elif renamable_count %}
+      <form action="{{ url_for('library_rename_all', library_id=library.id) }}" method="post"
+            onsubmit="return confirm('Rename {{ renamable_count }} trailer(s) to your current folder and filename settings? Nothing is downloaded or deleted. Titles with several trailer files are skipped.');">
+        <input type="hidden" name="filter" value="{{ filter_mode }}">
+        <button type="submit">Rename {{ renamable_count }} to current naming</button>
+      </form>
     {% endif %}
     <button type="button" onclick="location.reload()">Refresh</button>
   </div>
@@ -139,7 +167,13 @@
       {% for item in items %}
         <div class="item" data-title="{{ item.title|lower }}" data-year="{{ item.year }}">
           <div>
-            <div class="title">{{ item.title }}{% if item.year %} ({{ item.year }}){% endif %}</div>
+            <div class="title">{{ item.title }}{% if item.year %} ({{ item.year }}){% endif %}
+              {% if view == 'existing' %}
+                {% if item.trailer_state == 'ok' %}<span class="badge ok">✓ Matches naming</span>
+                {% elif item.trailer_state == 'mismatched' %}<span class="badge warn">⚠ Name differs from settings</span>
+                {% elif item.trailer_state == 'multiple' %}<span class="badge warn">⚠ {{ item.trailer_files|length }} trailer files</span>{% endif %}
+              {% endif %}
+            </div>
             <div class="path">{{ item.path }}</div>
 
             {% if view == 'existing' %}
@@ -151,9 +185,44 @@
                   {% if item.metadata.downloaded_at %}<br>Downloaded {{ item.metadata.downloaded_at }}{% endif %}
                   {% if item.metadata.download_source %} · {{ item.metadata.download_source }}{% endif %}
                 {% else %}
-                  <strong>Existing local trailer</strong> · Source information unknown
+                  <strong>Found on disk</strong> · not downloaded by this Trailarr install, so no source details
                 {% endif %}
               </div>
+
+              {% if item.trailer_state != 'ok' %}
+                <div class="files">
+                  {% for file in item.trailer_files %}
+                    <div class="file">
+                      <div>
+                        <div class="fname">{{ file.name }}</div>
+                        <div class="fmeta {{ '' if file.matches else 'warn' }}">
+                          {{ file.size_label }} ·
+                          {% if file.matches %}matches your naming{% else %}expected {{ item.target_name }}{% endif %}
+                          {% if file.metadata and file.metadata.youtube_id %} · YouTube {{ file.metadata.youtube_id }}{% endif %}
+                        </div>
+                      </div>
+                      <div class="buttons">
+                        {% if item.trailer_state == 'mismatched' %}
+                          <form action="{{ url_for('library_rename', library_id=library.id) }}" method="post">
+                            <input type="hidden" name="id" value="{{ item.id }}">
+                            <input type="hidden" name="path" value="{{ file.path }}">
+                            <input type="hidden" name="filter" value="{{ filter_mode }}">
+                            <button type="submit" title="Move to {{ item.target_name }} — nothing is downloaded">Rename to naming</button>
+                          </form>
+                        {% elif item.trailer_state == 'multiple' %}
+                          <form action="{{ url_for('library_keep', library_id=library.id) }}" method="post"
+                                onsubmit="return confirm('Keep {{ file.name }} and delete the other {{ item.trailer_files|length - 1 }} trailer file(s)?');">
+                            <input type="hidden" name="id" value="{{ item.id }}">
+                            <input type="hidden" name="path" value="{{ file.path }}">
+                            <input type="hidden" name="filter" value="{{ filter_mode }}">
+                            <button type="submit">Keep only this</button>
+                          </form>
+                        {% endif %}
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% endif %}
             {% endif %}
           </div>
 
@@ -166,7 +235,8 @@
             {% else %}
               <form action="{{ url_for('library_grab', library_id=library.id) }}" method="post">
                 <input type="hidden" name="id" value="{{ item.id }}">
-                <button class="primary" type="submit">Replace</button>
+                <input type="hidden" name="replace" value="1">
+                <button class="primary" type="submit" title="Download a new trailer. Old trailer files are removed only if the download succeeds.">Replace</button>
               </form>
             {% endif %}
 
@@ -178,7 +248,7 @@
             </form>
 
             {% if view == 'existing' %}
-              <form action="{{ url_for('library_delete', library_id=library.id) }}" method="post" onsubmit="return confirm('Delete this trailer file?');">
+              <form action="{{ url_for('library_delete', library_id=library.id) }}" method="post" onsubmit="return confirm('Delete {{ 'all ' ~ item.trailer_files|length ~ ' trailer files' if item.trailer_files|length > 1 else 'this trailer file' }}?');">
                 <input type="hidden" name="id" value="{{ item.id }}">
                 <button class="danger" type="submit">Delete</button>
               </form>
@@ -186,7 +256,7 @@
           </div>
         </div>
       {% else %}
-        <div class="empty">{{ 'No missing trailers.' if view == 'missing' else 'No existing trailers.' }}</div>
+        <div class="empty">{{ 'No missing trailers.' if view == 'missing' else ('Nothing needs attention.' if filter_mode == 'attention' else 'No existing trailers.') }}</div>
       {% endfor %}
     </div>
   </div>

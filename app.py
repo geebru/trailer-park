@@ -29,7 +29,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-APP_VERSION = "0.6.4"
+APP_VERSION = "0.7.0"
 
 
 # ── Paths / persistent state ──────────────────────────────────────────────
@@ -989,8 +989,22 @@ def fetch_and_score(tmdb_id, media_type, info=None):
 
 # ── Filesystem / yt-dlp ──────────────────────────────────────────────────
 
+def filename_safe_title(title):
+    """Make a title safe for filenames the way Radarr/Sonarr do by default.
+
+    "Avengers: Infinity War" -> "Avengers - Infinity War". Slashes become
+    dashes; characters Windows/SMB can't store (* ? " < > |) are dropped."""
+    text = str(title)
+    text = re.sub(r"\s*:\s+", " - ", text)
+    text = text.replace(":", "-")
+    text = re.sub(r"\s*[/\\]\s*", "-", text)
+    text = re.sub(r'[*?"<>|]', "", text)
+    text = re.sub(r"\s{2,}", " ", text).strip().rstrip(".")
+    return text or "Trailer"
+
+
 def out_path(base_path, title, year):
-    safe_title = re.sub(r'[/:*?"<>|\\]', "_", str(title))
+    safe_title = filename_safe_title(title)
     name = (
         str(cfg("filename_template"))
         .replace("{title}", safe_title)
@@ -1020,12 +1034,123 @@ def trailer_path_for_item(item):
     return f"{out_path(base, item['title'], item['year'])}.mkv"
 
 
+# ── Existing-trailer detection ───────────────────────────────────────────
+#
+# "Missing" means no trailer file at all, not "no file at exactly the
+# configured name". A trailer is any video file:
+#   - inside a trailers/trailer subfolder (any case) or the configured
+#     trailer folder, or
+#   - in the media folder itself when its name ends in "trailer"
+#     (Plex/Jellyfin style: "-trailer", ".trailer", " trailer", "trailer").
+
+TRAILER_VIDEO_EXTS = (".mkv", ".mp4", ".m4v", ".avi", ".mov", ".webm")
+TRAILER_DIR_NAMES = {"trailers", "trailer"}
+ROOT_TRAILER_STEM = re.compile(r"(?:^|[\s._-])trailer\d*$", re.IGNORECASE)
+ROOT_TRAILER_MAX_BYTES = 2 * 1024 ** 3  # never mistake a main movie for a trailer
+
+
+def is_video_file(name):
+    return (
+        name.lower().endswith(TRAILER_VIDEO_EXTS)
+        and ".trailarr-new-" not in name
+        and not name.startswith(".")
+    )
+
+
+def trailer_dirs(folder):
+    """Trailer subfolders inside a media folder (case-insensitive)."""
+    wanted = set(TRAILER_DIR_NAMES)
+    configured = str(cfg("trailer_folder") or "").strip().strip("/")
+    if configured and "/" not in configured:
+        wanted.add(configured.lower())
+    found = []
+    try:
+        with os.scandir(folder) as entries:
+            for entry in entries:
+                if entry.is_dir(follow_symlinks=False) and entry.name.lower() in wanted:
+                    found.append(entry.path)
+    except OSError:
+        pass
+    # A nested configured folder ("extras/trailers") is checked directly.
+    if configured and "/" in configured:
+        nested = os.path.join(folder, configured)
+        if os.path.isdir(nested):
+            found.append(nested)
+    return found
+
+
+def find_trailer_files(folder):
+    """All trailer files for one media folder, sorted by path."""
+    files = []
+    for directory in trailer_dirs(folder):
+        try:
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    if entry.is_file(follow_symlinks=False) and is_video_file(entry.name):
+                        files.append(entry.path)
+        except OSError:
+            continue
+    try:
+        with os.scandir(folder) as entries:
+            for entry in entries:
+                if not entry.is_file(follow_symlinks=False) or not is_video_file(entry.name):
+                    continue
+                stem = os.path.splitext(entry.name)[0]
+                if not ROOT_TRAILER_STEM.search(stem):
+                    continue
+                try:
+                    if entry.stat().st_size > ROOT_TRAILER_MAX_BYTES:
+                        continue
+                except OSError:
+                    continue
+                files.append(entry.path)
+    except OSError:
+        pass
+    return sorted(set(files))
+
+
+def target_stem_for(folder, title, year):
+    return out_path(folder, title, year)
+
+
+def matches_naming(path, folder, title, year):
+    """True if the file is at the configured name (any video extension)."""
+    stem = os.path.splitext(path)[0]
+    return stem == target_stem_for(folder, title, year)
+
+
+def trailer_state(folder, title, year):
+    """Classify one media folder's trailers.
+
+    Returns (state, files) where state is missing | ok | mismatched | multiple
+    and files is a list of dicts: path, name, size, matches.
+    """
+    files = []
+    for path in find_trailer_files(folder):
+        try:
+            size = os.path.getsize(path)
+        except OSError:
+            size = 0
+        files.append({
+            "path": path,
+            "name": os.path.relpath(path, folder),
+            "size": size,
+            "matches": matches_naming(path, folder, title, year)
+        })
+    if not files:
+        return "missing", files
+    if len(files) > 1:
+        return "multiple", files
+    return ("ok" if files[0]["matches"] else "mismatched"), files
+
+
 def trailer_exists(base_path, title, year):
+    """Any trailer file at all, whatever its name."""
     try:
         base_path = safe_folder_path(base_path)
     except ValueError:
         return False
-    return os.path.isfile(f"{out_path(base_path, title, year)}.mkv")
+    return bool(find_trailer_files(base_path))
 
 
 def ytdlp_binary():
@@ -1524,11 +1649,32 @@ def library_owns_item(library, item_path):
 
 def decorate_item(item, metadata_map=None):
     item = dict(item)
-    trailer_path = trailer_path_for_item(item)
-    item["trailer_path"] = trailer_path
-    item["missing"] = not os.path.isfile(trailer_path)
-    item["metadata"] = (metadata_map or {}).get(os.path.realpath(trailer_path))
+    folder = safe_folder_path(item["path"])
+    state, files = trailer_state(folder, item["title"], item["year"])
+    metadata_map = metadata_map or {}
+
+    for file in files:
+        file["size_label"] = human_size(file["size"])
+        file["metadata"] = metadata_map.get(os.path.realpath(file["path"]))
+
+    primary = next((f for f in files if f["matches"]), files[0] if files else None)
+    item["trailer_state"] = state
+    item["trailer_files"] = files
+    item["missing"] = state == "missing"
+    item["trailer_path"] = primary["path"] if primary else trailer_path_for_item(item)
+    item["metadata"] = primary["metadata"] if primary else None
+    item["target_name"] = os.path.relpath(
+        f"{target_stem_for(folder, item['title'], item['year'])}.mkv", folder
+    )
     return item
+
+
+def human_size(size):
+    size = float(size or 0)
+    for unit in ("B", "KB", "MB", "GB"):
+        if size < 1024 or unit == "GB":
+            return f"{size:.0f} {unit}" if unit in ("B", "KB") else f"{size:.1f} {unit}"
+        size /= 1024
 
 
 def load_library_items(library_id):
@@ -1566,6 +1712,156 @@ def load_library_views(library_id):
     missing = [item for item in items if item["missing"]]
     existing = [item for item in items if not item["missing"]]
     return library, missing, existing, error
+
+
+# ── Existing-trailer actions ─────────────────────────────────────────────
+
+def owned_item(library_id, item_id):
+    """Load an item and confirm it belongs to the library. Raises ValueError."""
+    library = get_library(library_id)
+    if not library:
+        raise ValueError("Library not found.")
+    connection = get_connection(library.get("connection_id"))
+    if not connection:
+        raise ValueError("Arr connection not found.")
+    item = get_connection_item(connection, item_id)
+    if not item_is_usable(item) or not library_owns_item(library, item.get("path", "")):
+        raise ValueError("Title is not in this library or has no media folder.")
+    return library, item, safe_folder_path(item["path"])
+
+
+def detected_file(folder, path):
+    """Return the detected trailer path matching `path`, or raise.
+
+    Only files Trailarr itself detected as trailers can be acted on, so a
+    crafted form can never touch the main media file or anything else."""
+    wanted = os.path.realpath(str(path or ""))
+    for candidate in find_trailer_files(folder):
+        if os.path.realpath(candidate) == wanted:
+            return candidate
+    raise ValueError("That file is not a detected trailer for this title.")
+
+
+def remove_empty_trailer_dir(directory, folder):
+    if (
+        os.path.dirname(directory) == folder
+        and os.path.basename(directory).lower() in TRAILER_DIR_NAMES | {str(cfg("trailer_folder") or "").lower()}
+    ):
+        try:
+            if not os.listdir(directory):
+                os.rmdir(directory)
+        except OSError:
+            pass
+
+
+def move_trailer_metadata(old_path, new_path):
+    data = load_trailer_metadata()
+    entry = data.get(os.path.realpath(old_path))
+    if entry is not None:
+        update_trailer_metadata(old_path, remove=True)
+        update_trailer_metadata(new_path, entry)
+
+
+def rename_trailer_to_naming(folder, title, year, path):
+    """Move one trailer to the configured name, keeping its extension.
+
+    Returns the new path. Never overwrites an existing file."""
+    source = detected_file(folder, path)
+    ext = os.path.splitext(source)[1].lower() or ".mkv"
+    target = f"{target_stem_for(folder, title, year)}{ext}"
+    if os.path.realpath(source) == os.path.realpath(target):
+        return target
+    if os.path.exists(target):
+        raise ValueError(f"A file already exists at {os.path.relpath(target, folder)}.")
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    os.replace(source, target)
+    move_trailer_metadata(source, target)
+    remove_empty_trailer_dir(os.path.dirname(source), folder)
+    return target
+
+
+def delete_trailer_files(folder, paths):
+    removed = []
+    for path in paths:
+        source = detected_file(folder, path)
+        os.remove(source)
+        update_trailer_metadata(source, remove=True)
+        remove_empty_trailer_dir(os.path.dirname(source), folder)
+        removed.append(os.path.relpath(source, folder))
+    return removed
+
+
+def remove_other_trailers(folder, keep_path):
+    """After a successful download: remove every other detected trailer."""
+    keep = os.path.realpath(keep_path)
+    others = [p for p in find_trailer_files(folder) if os.path.realpath(p) != keep]
+    try:
+        return delete_trailer_files(folder, others)
+    except Exception as e:
+        log.warning(f"Could not remove old trailer files in {folder}: {e}")
+        return []
+
+
+def rename_library_item_trailer(library_id, item_id, path):
+    library, item, folder = owned_item(library_id, item_id)
+    new_path = rename_trailer_to_naming(folder, item["title"], item["year"], path)
+    record_activity({
+        **context_for_item(item, library, "Web UI"),
+        "status": "success",
+        "action": "rename",
+        "title": item["title"],
+        "year": item["year"],
+        "detail": f"Renamed {os.path.relpath(path, folder)} → {os.path.relpath(new_path, folder)}"
+    })
+    return new_path
+
+
+def keep_only_library_trailer(library_id, item_id, keep_path):
+    library, item, folder = owned_item(library_id, item_id)
+    keep = detected_file(folder, keep_path)
+    others = [p for p in find_trailer_files(folder) if os.path.realpath(p) != os.path.realpath(keep)]
+    removed = delete_trailer_files(folder, others)
+    record_activity({
+        **context_for_item(item, library, "Web UI"),
+        "status": "success",
+        "action": "delete",
+        "title": item["title"],
+        "year": item["year"],
+        "detail": f"Kept {os.path.relpath(keep, folder)}; removed {', '.join(removed) or 'nothing'}."
+    })
+    return keep, removed
+
+
+def rename_all_in_library(library_id):
+    """Rename every single, mismatched trailer in a library to the naming.
+
+    Titles with several trailer files are left for manual review."""
+    library, _missing, existing, _error = load_library_views(library_id)
+    renamed, skipped = 0, []
+    for item in existing:
+        if item["trailer_state"] != "mismatched":
+            continue
+        folder = safe_folder_path(item["path"])
+        try:
+            rename_trailer_to_naming(folder, item["title"], item["year"], item["trailer_files"][0]["path"])
+            renamed += 1
+        except Exception as e:
+            skipped.append(f"{item['title']}: {e}")
+    if renamed or skipped:
+        record_activity({
+            "source": "Web UI",
+            "library_id": library_id,
+            "library": library.get("name", ""),
+            "status": "success" if not skipped else "warning",
+            "action": "rename",
+            "title": f"{library.get('name', 'Library')}: rename to current naming",
+            "year": "",
+            "detail": (
+                f"Renamed {renamed} trailer(s)."
+                + (f" Skipped {len(skipped)}: " + "; ".join(skipped[:10]) if skipped else "")
+            )
+        })
+    return renamed, skipped
 
 
 def all_missing_items():
@@ -1865,7 +2161,7 @@ def try_candidates(candidates, out, attempts):
 
 
 def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
-                context=None, skip_existing=False):
+                context=None, skip_existing=False, replace_others=False):
     context = context or {}
     log.info(
         f"{title} ({year}) — TMDB {tmdb_id}"
@@ -1984,6 +2280,10 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
 
     if result["ok"]:
         notes = []
+        if replace_others:
+            removed = remove_other_trailers(folder_path, result["path"])
+            if removed:
+                notes.append(f"removed old: {', '.join(removed)}")
         if via_search:
             channel = best.get("channel") or "unknown channel"
             notes.append(f"found via YouTube search ('{search_info.get('search_query', '')}', {channel})")
@@ -2094,7 +2394,7 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
     return {"status": "download_failed", "error": result["error"]}, 500
 
 
-def grab_library_item(library_id, item_id, dry_run=False, trigger="Web UI"):
+def grab_library_item(library_id, item_id, dry_run=False, trigger="Web UI", replace=False):
     library = get_library(library_id)
     if not library:
         return {"status": "library_missing"}, 404
@@ -2118,7 +2418,7 @@ def grab_library_item(library_id, item_id, dry_run=False, trigger="Web UI"):
             return {"status": "no_tmdb_match"}, 200
         return handle_grab(
             item["title"], item["year"], tmdb_id, "movie", item["path"],
-            dry_run=dry_run, context=context
+            dry_run=dry_run, context=context, replace_others=replace
         )
 
     tmdb_id = resolve_tv_tmdb(
@@ -2129,7 +2429,7 @@ def grab_library_item(library_id, item_id, dry_run=False, trigger="Web UI"):
 
     return handle_grab(
         item["title"], item["year"], tmdb_id, "tv", item["path"],
-        dry_run=dry_run, context=context
+        dry_run=dry_run, context=context, replace_others=replace
     )
 
 
@@ -2170,6 +2470,7 @@ def force_library_item(library_id, item_id, yt_id, trigger="Web UI"):
             "arr_type": item["source"]
         }
         update_trailer_metadata(result["path"], metadata)
+        removed = remove_other_trailers(folder, result["path"])
 
         record_activity({
             **context,
@@ -2180,6 +2481,7 @@ def force_library_item(library_id, item_id, yt_id, trigger="Web UI"):
             "youtube_id": yt_id,
             "duration": result["duration"],
             "detail": "Forced YouTube trailer downloaded."
+            + (f" Removed old: {', '.join(removed)}." if removed else "")
         })
 
         notify(
@@ -2203,33 +2505,26 @@ def force_library_item(library_id, item_id, yt_id, trigger="Web UI"):
 
 
 def delete_library_trailer(library_id, item_id):
-    library = get_library(library_id)
-    if not library:
-        return {"status": "library_missing"}, 404
-    connection = get_connection(library.get("connection_id"))
-    if not connection:
-        return {"status": "connection_missing"}, 404
+    """Delete every detected trailer file for one title."""
+    try:
+        library, item, folder = owned_item(library_id, item_id)
+    except ValueError as e:
+        return {"status": "error", "reason": str(e)}, 400
 
-    item = get_connection_item(connection, item_id)
-    if not library_owns_item(library, item.get("path", "")):
-        return {"status": "outside_library"}, 400
+    files = find_trailer_files(folder)
+    if not files:
+        return {"status": "not_found"}, 404
 
-    trailer_path = trailer_path_for_item(item)
-    if os.path.isfile(trailer_path):
-        os.remove(trailer_path)
-        update_trailer_metadata(trailer_path, remove=True)
-
-        record_activity({
-            **context_for_item(item, library, "Web UI"),
-            "status": "success",
-            "action": "delete",
-            "title": item["title"],
-            "year": item["year"],
-            "detail": "Trailer deleted."
-        })
-        return {"status": "deleted"}, 200
-
-    return {"status": "not_found"}, 404
+    removed = delete_trailer_files(folder, files)
+    record_activity({
+        **context_for_item(item, library, "Web UI"),
+        "status": "success",
+        "action": "delete",
+        "title": item["title"],
+        "year": item["year"],
+        "detail": f"Deleted {', '.join(removed)}."
+    })
+    return {"status": "deleted", "removed": removed}, 200
 
 
 # ── Batch jobs ────────────────────────────────────────────────────────────
@@ -2862,7 +3157,12 @@ def library_page(library_id):
     except ValueError:
         return redirect(url_for("index"))
 
+    filter_mode = request.args.get("filter", "")
+    attention = [i for i in existing if i.get("trailer_state") in ("mismatched", "multiple")]
+    renamable = [i for i in existing if i.get("trailer_state") == "mismatched"]
     items = missing if view == "missing" else existing
+    if view == "existing" and filter_mode == "attention":
+        items = attention
 
     return render_template(
         "library.html",
@@ -2871,6 +3171,9 @@ def library_page(library_id):
         items=items,
         missing_count=len(missing),
         existing_count=len(existing),
+        attention_count=len(attention),
+        renamable_count=len(renamable),
+        filter_mode=filter_mode,
         view=view,
         error=error,
         batch=batch_snapshot(),
@@ -2882,17 +3185,67 @@ def library_page(library_id):
 @app.route("/library/<library_id>/grab", methods=["POST"])
 def library_grab(library_id):
     item_id = request.form.get("id", "")
+    replace = request.form.get("replace") == "1"
+    return_view = "existing" if replace else "missing"
     try:
-        result, code = grab_library_item(library_id, item_id)
+        result, code = grab_library_item(library_id, item_id, replace=replace)
         status = result.get("status", "unknown")
-        message = "Trailer downloaded." if status == "downloaded" else f"Result: {status}"
+        if status == "downloaded":
+            message = "Trailer replaced." if replace else "Trailer downloaded."
+        elif status == "no_trailer":
+            message = f"No trailer found{' — existing trailer kept' if replace else ''}."
+        else:
+            message = f"Result: {status}" + (" — existing trailer kept." if replace else "")
         if code >= 400:
-            message = f"Failed: {status}"
+            message = f"Failed: {status}" + (" — existing trailer kept." if replace else "")
     except Exception as e:
         log.exception("UI grab failed")
         message = f"Failed: {e}"
 
-    return redirect(url_for("library_page", library_id=library_id, view="missing", message=message))
+    return redirect(url_for("library_page", library_id=library_id, view=return_view, message=message))
+
+
+def existing_redirect(library_id, message):
+    return redirect(url_for(
+        "library_page", library_id=library_id, view="existing",
+        filter=request.form.get("filter", ""), message=message
+    ))
+
+
+@app.route("/library/<library_id>/rename", methods=["POST"])
+def library_rename(library_id):
+    try:
+        new_path = rename_library_item_trailer(
+            library_id, request.form.get("id", ""), request.form.get("path", "")
+        )
+        message = f"Renamed to {os.path.basename(new_path)}."
+    except Exception as e:
+        message = f"Rename failed: {e}"
+    return existing_redirect(library_id, message)
+
+
+@app.route("/library/<library_id>/keep", methods=["POST"])
+def library_keep(library_id):
+    try:
+        keep, removed = keep_only_library_trailer(
+            library_id, request.form.get("id", ""), request.form.get("path", "")
+        )
+        message = f"Kept {os.path.basename(keep)}; removed {len(removed)} other file(s)."
+    except Exception as e:
+        message = f"Failed: {e}"
+    return existing_redirect(library_id, message)
+
+
+@app.route("/library/<library_id>/rename-all", methods=["POST"])
+def library_rename_all(library_id):
+    try:
+        renamed, skipped = rename_all_in_library(library_id)
+        message = f"Renamed {renamed} trailer(s) to the current naming."
+        if skipped:
+            message += f" Skipped {len(skipped)} (see Activity)."
+    except Exception as e:
+        message = f"Rename failed: {e}"
+    return existing_redirect(library_id, message)
 
 
 @app.route("/library/<library_id>/force", methods=["POST"])
@@ -2917,7 +3270,11 @@ def library_delete(library_id):
     item_id = request.form.get("id", "")
     try:
         result, _ = delete_library_trailer(library_id, item_id)
-        message = "Trailer deleted." if result.get("status") == "deleted" else "Trailer not found."
+        if result.get("status") == "deleted":
+            removed = result.get("removed", [])
+            message = f"Deleted {len(removed)} trailer file(s)."
+        else:
+            message = result.get("reason") or "Trailer not found."
     except Exception as e:
         log.exception("UI delete failed")
         message = f"Failed: {e}"
