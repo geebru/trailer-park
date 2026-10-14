@@ -105,6 +105,10 @@
           <option value="latest" {{ 'selected' if settings.season_fallback == 'latest' else '' }}>Latest season</option>
           <option value="off" {{ 'selected' if settings.season_fallback == 'off' else '' }}>Off — report no trailer</option>
         </select><div class="help">Used only when a show has no show-level trailer on TMDB. Show trailers that mention a later season (“Season 8 Trailer”, “Final Season”) are always ranked behind spoiler-free ones.</div></div></div>
+        <div class="field-wide"><label for="youtube_search">YouTube search fallback</label><div><select id="youtube_search" name="youtube_search">
+          <option value="off" {{ 'selected' if settings.youtube_search == 'off' else '' }}>Off</option>
+          <option value="on" {{ 'selected' if settings.youtube_search == 'on' else '' }}>On</option>
+        </select><div class="help">When TMDB has no usable trailer, or every TMDB trailer is unavailable, search YouTube for “title year trailer”. A result must contain every word of the title and “trailer”, “teaser” or “promo”, be 20 s – 5 min long, and avoid excluded and junk terms (reaction, review, recap, fan made, episode, scene…). Grabs found this way are marked in Activity and Discord so you can spot-check them.</div></div></div>
       </div>
     </div>
 

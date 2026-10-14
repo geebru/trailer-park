@@ -1,5 +1,14 @@
 # Trailarr Parrk — Changelog
 
+## v0.6.4 — YouTube search fallback
+
+### Added
+- **YouTube search fallback** (Settings → Matching, off by default; env `YOUTUBE_SEARCH=on`). When TMDB has no usable trailer, or every TMDB trailer is unavailable, Trailarr searches YouTube for `<title> <year> trailer` (top 15 results, metadata only).
+- A search result is only used if it contains every significant word of the title, contains "trailer", "teaser" or "promo", is 20 s – 5 min long, matches no excluded term, and none of the built-in junk terms (reaction, review, recap, explained, fan made, episode, scene, clip, compilation and similar).
+- Results naming a different year (more than one year off) are rejected, so same-name remakes and reboots aren't picked. Numbers that are part of the title itself ("Blade Runner 2049", "1917") are ignored.
+- Ranking: the right year in the video title first, then spoiler-free, preferred-terms score, official/verified channel, view count.
+- Grabs found this way are marked "found via YouTube search" with the query and channel in Activity and Discord, so they can be spot-checked.
+
 ## v0.6.3 — Fewer missed trailers
 
 ### Fixed

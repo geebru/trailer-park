@@ -2,7 +2,7 @@
 
 Thank you for helping improve Trailarr Parrk. This project downloads and manages local trailers for Radarr and Sonarr libraries using TMDB and yt-dlp.
 
-This guide applies to the v0.6.3 codebase. Please read the [README](README.md) and [CHANGELOG](CHANGELOG.md) before making changes.
+This guide applies to the v0.6.4 codebase. Please read the [README](README.md) and [CHANGELOG](CHANGELOG.md) before making changes.
 
 The project lives at **https://gitea.icarus-ii.com/izsez/trailarr-parrk**. Issues, pull requests and releases are handled there.
 
@@ -94,6 +94,7 @@ Media operations require extra care:
 - **TMDB languages:** `/videos` returns English only unless `include_video_language` is set. Keep requesting English, the title's original language and `null`.
 - **TV trailers:** show-level trailers always come first. Only when there are none, fall back to season trailers per the `season_fallback` setting (`first` default, `latest`, `off`), capped at three lookups. Never let a later-season trailer (`later_season_in_name`) outrank a spoiler-free one.
 - **Sonarr TMDB IDs:** use the series' own `tmdbId` first; fall back to TMDB `/find` by TVDB ID, then IMDb ID (`resolve_tv_tmdb`).
+- **YouTube search fallback:** opt-in only, and only after TMDB has nothing usable. Keep every filter in `youtube_search_candidates` (title words, trailer word, duration, junk/excluded terms, wrong year); loosening them trades misses for wrong-show grabs. Always mark search grabs (`via_search`) in Activity.
 - **Unavailable videos:** only errors about the video itself (`video_is_gone`) move on to the next candidate (max 5). Bot checks, network errors and timeouts must stop the loop.
 - **TMDB:** Preserve trailer selection/scoring behavior unless a change is intentional and documented. Handle missing or malformed external responses safely.
 - **yt-dlp:** Preserve the distinction between the bundled binary and the persistent `/config/bin/yt-dlp` override. Do not bypass checksum verification for in-app updates. Automatic update checks must not silently install a release.
@@ -102,7 +103,7 @@ Media operations require extra care:
 
 ## Testing changes
 
-There is no dedicated automated test suite included in the v0.6.3 archive. Contributors should describe the manual tests performed and add automated tests when practical, especially for bug fixes and path handling.
+There is no dedicated automated test suite included in the v0.6.4 archive. Contributors should describe the manual tests performed and add automated tests when practical, especially for bug fixes and path handling.
 
 At a minimum, verify relevant cases before opening a pull request:
 
@@ -129,7 +130,7 @@ This is only a syntax check, not a substitute for functional testing.
 
 ## Docker development, updates, and releases
 
-These instructions match the Dockerfile and Compose file supplied with **v0.6.3**. They describe a maintainer workflow; they do **not** imply that an automated CI pipeline, Docker Hub organization, or GitHub Container Registry publisher is already configured.
+These instructions match the Dockerfile and Compose file supplied with **v0.6.4**. They describe a maintainer workflow; they do **not** imply that an automated CI pipeline, Docker Hub organization, or GitHub Container Registry publisher is already configured.
 
 ### Prerequisites and first-time setup
 
@@ -180,7 +181,7 @@ The repository currently uses one Dockerfile at its root. It:
 4. Configures yt-dlp remote EJS components via `/etc/yt-dlp.conf`.
 5. Copies `app.py` and `templates/` to `/app`, exposes TCP port 8080, and starts Flask through Waitress.
 
-There is **no Dockerfile generator** in v0.6.3. To create an alternative image definition, copy the existing Dockerfile and adapt it deliberately:
+There is **no Dockerfile generator** in v0.6.4. To create an alternative image definition, copy the existing Dockerfile and adapt it deliberately:
 
 ```bash
 cp Dockerfile Dockerfile.dev
@@ -208,18 +209,18 @@ docker compose ps
 docker compose logs --tail=100 trailarr-parrk
 ```
 
-Open `http://localhost:8080` (or the appropriate Docker-host address), verify that the UI loads, and exercise the affected workflows against **test** Radarr/Sonarr data and disposable media. Confirm persistence across a restart and test downloads, cancellation, path handling, and replacement/deletion when relevant. The v0.6.3 archive does not ship an automated test suite, so a successful build alone is not release validation.
+Open `http://localhost:8080` (or the appropriate Docker-host address), verify that the UI loads, and exercise the affected workflows against **test** Radarr/Sonarr data and disposable media. Confirm persistence across a restart and test downloads, cancellation, path handling, and replacement/deletion when relevant. The v0.6.4 archive does not ship an automated test suite, so a successful build alone is not release validation.
 
 ### Build and tag a new version
 
-After making and testing release changes, select a new version (example: `v0.6.4`) and update `README.md` and `CHANGELOG.md` consistently. The commands below create local image tags; they do not publish anything:
+After making and testing release changes, select a new version (example: `v0.6.5`) and update `README.md` and `CHANGELOG.md` consistently. The commands below create local image tags; they do not publish anything:
 
 ```bash
-docker build --pull -t trailarr-parrk:v0.6.4 -t trailarr-parrk:latest .
+docker build --pull -t trailarr-parrk:v0.6.5 -t trailarr-parrk:latest .
 docker image ls trailarr-parrk
 ```
 
-The example version is illustrative, not an announcement that v0.6.4 exists. Use the actual approved release version and avoid moving `latest` unless the release is stable.
+The example version is illustrative, not an announcement that v0.6.5 exists. Use the actual approved release version and avoid moving `latest` unless the release is stable.
 
 ### Multi-platform images: amd64 and arm64
 
@@ -236,7 +237,7 @@ A multi-platform image is normally pushed directly to a registry rather than imp
 
 ```bash
 export IMAGE=gitea.icarus-ii.com/izsez/trailarr-parrk
-export VERSION=v0.6.3
+export VERSION=v0.6.4
 
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
@@ -255,7 +256,7 @@ The project's registry is the **Gitea container registry** on the project host. 
 
 ```bash
 export IMAGE=gitea.icarus-ii.com/izsez/trailarr-parrk
-export VERSION=v0.6.3
+export VERSION=v0.6.4
 
 # Provide the token securely in your environment as GITEA_TOKEN.
 printf '%s' "$GITEA_TOKEN" | docker login gitea.icarus-ii.com -u izsez --password-stdin
@@ -278,9 +279,9 @@ No automated release workflow (Gitea Actions) is configured yet; images are buil
 5. Tag the source and image with the **same** version. For example, after reviewing the commit:
 
    ```bash
-   git tag v0.6.4
+   git tag v0.6.5
    # Push only when authorized and the correct remote/branch is confirmed:
-   git push origin v0.6.4
+   git push origin v0.6.5
    ```
 
 6. If you maintain published images, push the intended tags to your configured registry; update `latest` only when appropriate.

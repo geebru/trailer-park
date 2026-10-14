@@ -29,7 +29,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-APP_VERSION = "0.6.3"
+APP_VERSION = "0.6.4"
 
 
 # ── Paths / persistent state ──────────────────────────────────────────────
@@ -108,7 +108,9 @@ DEFAULT_SETTINGS = {
     # newly added series (Sonarr). 0 disables the watcher.
     "watch_interval_minutes": os.environ.get("WATCH_INTERVAL_MINUTES", "5"),
     # TV shows with no show-level trailer: off | first | latest season.
-    "season_fallback": os.environ.get("SEASON_FALLBACK", "first")
+    "season_fallback": os.environ.get("SEASON_FALLBACK", "first"),
+    # Search YouTube directly when TMDB has no usable trailer: off | on.
+    "youtube_search": os.environ.get("YOUTUBE_SEARCH", "off")
 }
 
 SETTINGS_LOCK = threading.RLock()
@@ -316,6 +318,10 @@ def validate_settings_scalars(values):
     if not max_downloads.isdigit() or not 1 <= int(max_downloads) <= 4:
         raise ValueError("Concurrent downloads must be between 1 and 4.")
 
+    youtube_search = str(values.get("youtube_search", "off")).strip().lower()
+    if youtube_search not in ("off", "on"):
+        raise ValueError("YouTube search fallback must be on or off.")
+
     season_fallback = str(values.get("season_fallback", "first")).strip().lower()
     if season_fallback not in SEASON_FALLBACK_MODES:
         raise ValueError("Season fallback must be off, first or latest.")
@@ -352,6 +358,7 @@ def validate_settings_scalars(values):
         "max_concurrent_downloads": max_downloads,
         "watch_interval_minutes": watch_interval,
         "season_fallback": season_fallback,
+        "youtube_search": youtube_search,
         "trailer_folder": trailer_folder,
         "filename_template": filename_template,
         "preferred_terms": str(values.get("preferred_terms", "")).strip(),
@@ -1614,6 +1621,193 @@ def context_for_item(item, library=None, trigger="Web UI"):
 
 # ── Core grab logic ──────────────────────────────────────────────────────
 
+# ── YouTube search fallback ──────────────────────────────────────────────
+#
+# Used only when TMDB has no usable trailer, or every TMDB trailer is
+# unavailable. Results must pass strict filters, because YouTube search is
+# far noisier than TMDB's curated list.
+
+SEARCH_RESULTS = 15
+SEARCH_MIN_SECONDS = 20
+SEARCH_MAX_SECONDS = 300
+SEARCH_REQUIRED_WORDS = ("trailer", "teaser", "promo")
+SEARCH_JUNK_TERMS = (
+    "reaction", "review", "recap", "explained", "breakdown", "theory",
+    "theories", "fan made", "fanmade", "fan-made", "concept", "parody",
+    "full episode", "episode", "ending", "scene", "clip", "music video",
+    "soundtrack", "ost", "compilation", "best moments", "behind the scenes",
+    "interview", "honest trailer", "pitch meeting", "everything wrong",
+    "easter eggs", "re-cut", "recut", "remake", "ai generated", "ai trailer",
+    "4k remaster", "edit", "tribute", "vs", "comparison", "1 hour", "10 hours",
+    "lyrics", "podcast", "live stream", "livestream", "shorts"
+)
+TITLE_STOPWORDS = {"the", "a", "an", "and", "of", "in", "on", "at", "to", "for", "&"}
+
+
+def youtube_search_enabled():
+    return str(cfg("youtube_search") or "off").strip().lower() == "on"
+
+
+def normalize_words(text):
+    text = str(text or "").lower().replace("&", " and ")
+    text = re.sub(r"[^\w\s]", " ", text)
+    return [word for word in text.split() if word]
+
+
+def significant_title_words(title):
+    words = [w for w in normalize_words(title) if w not in TITLE_STOPWORDS]
+    # Very short titles ("It", "Up") keep all words so they still match.
+    return words or normalize_words(title)
+
+
+def title_matches(title, video_title):
+    wanted = significant_title_words(title)
+    have = set(normalize_words(video_title))
+    return bool(wanted) and all(word in have for word in wanted)
+
+
+def junk_term_in(name_lower):
+    for term in SEARCH_JUNK_TERMS:
+        if re.search(r"(?<![a-z0-9])" + re.escape(term) + r"(?![a-z0-9])", name_lower):
+            return term
+    return ""
+
+
+def wrong_year_in(name, year_text, title=""):
+    """A 4-digit year in the video title more than a year from ours, else ''.
+
+    Catches remakes and reboots that share a title ("Avatar: The Last
+    Airbender (2024)" when looking for the 2005 series)."""
+    try:
+        ours = int(year_text)
+    except (TypeError, ValueError):
+        return ""
+    own_numbers = set(re.findall(r"\d+", str(title)))  # "Blade Runner 2049", "1917"
+    for match in re.finditer(r"(?<!\d)(19[2-9]\d|20[0-4]\d)(?!\d)", str(name)):
+        if match.group(1) in own_numbers:
+            continue
+        if abs(int(match.group(1)) - ours) > 1:
+            return match.group(1)
+    return ""
+
+
+def run_ytdlp_search(query, count=SEARCH_RESULTS):
+    """Return YouTube search entries (metadata only, nothing downloaded)."""
+    cmd = [
+        ytdlp_binary(),
+        "--flat-playlist",
+        "--dump-single-json",
+        "--no-warnings",
+        f"ytsearch{count}:{query}"
+    ]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=90)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("YouTube search timed out.")
+    if result.returncode != 0:
+        raise RuntimeError(short_ytdlp_error(result.stderr or "YouTube search failed."))
+    data = json.loads(result.stdout or "{}")
+    return [e for e in (data.get("entries") or []) if isinstance(e, dict)]
+
+
+def youtube_search_candidates(title, year, media_type, info=None, exclude_keys=()):
+    info = info if info is not None else {}
+    query = f"{title} {year} trailer".strip()
+    info["search_query"] = query
+    try:
+        entries = run_ytdlp_search(query)
+    except Exception as e:
+        log.warning(f"YouTube search failed for '{query}': {e}")
+        info["search_error"] = str(e)
+        return []
+
+    preferred_terms = cfg_list("preferred_terms")
+    excluded_terms = cfg_list("excluded_terms")
+    year_text = str(year or "")
+    candidates = []
+    rejected = 0
+
+    for entry in entries:
+        key = str(entry.get("id") or "")
+        name = str(entry.get("title") or "")
+        name_lower = name.lower()
+        if not re.fullmatch(r"[A-Za-z0-9_-]{11}", key) or key in exclude_keys:
+            continue
+
+        duration = entry.get("duration")
+        reasons = []
+        if not title_matches(title, name):
+            reasons.append("title mismatch")
+        if not any(word in name_lower for word in SEARCH_REQUIRED_WORDS):
+            reasons.append("not a trailer")
+        if isinstance(duration, (int, float)) and not (
+            SEARCH_MIN_SECONDS <= duration <= SEARCH_MAX_SECONDS
+        ):
+            reasons.append(f"duration {int(duration)}s")
+        junk = junk_term_in(name_lower)
+        if junk:
+            reasons.append(f"junk term '{junk}'")
+        other_year = wrong_year_in(name, year_text, title)
+        if other_year:
+            reasons.append(f"different year {other_year}")
+        excluded_hit = [t for t in excluded_terms if t and t in name_lower]
+        if excluded_hit:
+            reasons.append(f"excluded '{excluded_hit[0]}'")
+        if reasons:
+            rejected += 1
+            continue
+
+        video_type = (
+            "Trailer" if "trailer" in name_lower
+            else "Teaser" if "teaser" in name_lower
+            else ""
+        )
+        verified = bool(entry.get("channel_is_verified"))
+        score, matched = score_candidate(
+            {"name": name, "type": video_type, "official": verified},
+            preferred_terms
+        )
+        if score <= 0:
+            rejected += 1
+            continue
+
+        candidates.append({
+            "score": score,
+            "key": key,
+            "name": name,
+            "type": video_type,
+            "official": verified or "official" in name_lower,
+            "language": "",
+            "later_season": later_season_in_name(name) if media_type == "tv" else 0,
+            "matched_terms": matched,
+            "via_search": True,
+            "channel": str(entry.get("channel") or entry.get("uploader") or ""),
+            "has_year": bool(year_text) and year_text in name,
+            "views": int(entry.get("view_count") or 0)
+        })
+
+    # The right year in the title beats everything else: it separates the
+    # original from a same-name remake. Then spoiler-free, score, official
+    # channel and views.
+    candidates.sort(
+        key=lambda c: (
+            c["has_year"],
+            not c["later_season"],
+            c["score"],
+            c["official"],
+            c["views"]
+        ),
+        reverse=True
+    )
+    info["search_found"] = len(candidates)
+    info["search_rejected"] = rejected
+    log.info(
+        f"YouTube search '{query}': {len(candidates)} usable of {len(entries)} "
+        f"result(s), {rejected} rejected."
+    )
+    return candidates
+
+
 # yt-dlp errors that mean "this particular video can't be had", so the next
 # TMDB candidate is worth trying. Anything else (bot checks, network, timeouts,
 # yt-dlp breakage) would fail the same way for every candidate.
@@ -1651,6 +1845,25 @@ def short_ytdlp_error(error):
     return (errors[-1] if errors else (lines[-1] if lines else "yt-dlp failed."))[:300]
 
 
+def try_candidates(candidates, out, attempts):
+    """Download the first available candidate. Returns (result, best)."""
+    result, best = None, None
+    for candidate in candidates[:MAX_CANDIDATE_ATTEMPTS]:
+        best = candidate
+        result = download(candidate["key"], out)
+        attempts.append({
+            "key": candidate["key"],
+            "name": candidate["name"],
+            "via_search": bool(candidate.get("via_search")),
+            "ok": result["ok"],
+            "error": "" if result["ok"] else short_ytdlp_error(result["error"])
+        })
+        if result["ok"] or not video_is_gone(result["error"]):
+            break
+        log.info(f"  {candidate['key']} unavailable, trying next candidate.")
+    return result, best
+
+
 def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
                 context=None, skip_existing=False):
     context = context or {}
@@ -1676,7 +1889,13 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
         return {"status": "exists"}, 200
 
     fetch_info = {}
+    search_info = {}
     scored, excluded = fetch_and_score(tmdb_id, media_type, fetch_info)
+    searched = False
+
+    if not scored and youtube_search_enabled() and not fetch_info.get("error"):
+        scored = youtube_search_candidates(title, year, media_type, search_info)
+        searched = True
 
     if not scored:
         langs = ", ".join(fetch_info.get("languages", ["en"]))
@@ -1691,14 +1910,22 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
             )
             reason = (
                 f"TMDB lists no YouTube trailers or teasers for this title "
-                f"(languages checked: {langs}{season_note}). "
-                f"Use Force with a YouTube ID."
+                f"(languages checked: {langs}{season_note})."
             )
         else:
             reason = (
                 f"TMDB has {fetch_info['trailer_count']} trailer/teaser(s), "
                 f"but none passed the current rules ({len(excluded)} excluded)."
             )
+        if searched:
+            if search_info.get("search_error"):
+                reason += f" YouTube search failed: {search_info['search_error']}"
+            else:
+                reason += (
+                    f" YouTube search found nothing suitable "
+                    f"({search_info.get('search_rejected', 0)} result(s) rejected)."
+                )
+        reason += " Use Force with a YouTube ID."
 
         if not dry_run:
             notify(
@@ -1720,13 +1947,13 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
         return {"status": "no_trailer", "reason": reason, "excluded": excluded}, 200
 
     out = out_path(folder_path, title, year)
-    best = scored[0]
 
     if dry_run:
         for candidate in scored:
             log.info(
                 f"  [+{candidate['score']}] {candidate['name']} — "
                 f"https://youtu.be/{candidate['key']}"
+                + (" (YouTube search)" if candidate.get("via_search") else "")
             )
         return {
             "status": "dry_run",
@@ -1735,35 +1962,38 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
         }, 200
 
     attempts = []
-    result = None
-    for candidate in scored[:MAX_CANDIDATE_ATTEMPTS]:
-        result = download(candidate["key"], out)
-        attempts.append({
-            "key": candidate["key"],
-            "name": candidate["name"],
-            "ok": result["ok"],
-            "error": "" if result["ok"] else short_ytdlp_error(result["error"])
-        })
-        if result["ok"]:
-            best = candidate
-            break
-        best = candidate
-        if not video_is_gone(result["error"]):
-            break
-        log.info(
-            f"  {candidate['key']} unavailable, trying next candidate "
-            f"({len(attempts)}/{min(len(scored), MAX_CANDIDATE_ATTEMPTS)})."
+    result, best = try_candidates(scored, out, attempts)
+
+    # Every TMDB trailer is dead: search YouTube before giving up.
+    if (
+        not result["ok"]
+        and not searched
+        and youtube_search_enabled()
+        and all(video_is_gone(a["error"]) for a in attempts)
+    ):
+        searched = True
+        tried = {a["key"] for a in attempts}
+        found = youtube_search_candidates(
+            title, year, media_type, search_info, exclude_keys=tried
         )
+        if found:
+            result, best = try_candidates(found, out, attempts)
 
     skipped = [a for a in attempts if not a["ok"]]
-    skipped_note = (
-        f" — skipped {len(skipped)} unavailable: "
-        + ", ".join(f"{a['name']} ({a['key']})" for a in skipped)
-        + "."
-        if result["ok"] and skipped else ""
-    )
+    via_search = bool(best and best.get("via_search"))
 
     if result["ok"]:
+        notes = []
+        if via_search:
+            channel = best.get("channel") or "unknown channel"
+            notes.append(f"found via YouTube search ('{search_info.get('search_query', '')}', {channel})")
+        if skipped:
+            notes.append(
+                f"skipped {len(skipped)} unavailable: "
+                + ", ".join(f"{a['name']} ({a['key']})" for a in skipped)
+            )
+        note = (" — " + "; ".join(notes) + ".") if notes else ""
+
         trailer_path = result["path"]
         metadata = {
             "title": title,
@@ -1771,7 +2001,7 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
             "tmdb_id": tmdb_id,
             "youtube_id": best["key"],
             "tmdb_name": best["name"],
-            "tmdb_type": best.get("type", ""),
+            "tmdb_type": "YouTube search" if via_search else best.get("type", ""),
             "score": best["score"],
             "matched_terms": best.get("matched_terms", []),
             "downloaded_at": utc_now(),
@@ -1786,6 +2016,7 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
             3066993,
             f"✅ Trailer downloaded — {title} ({year})",
             f"**{best['name']}**\nhttps://youtu.be/{best['key']}"
+            + ("\n_Found via YouTube search_" if via_search else "")
         )
 
         record_activity({
@@ -1800,7 +2031,8 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
             "score": best["score"],
             "duration": result["duration"],
             "saved_to": trailer_path,
-            "detail": f"Trailer downloaded to {trailer_path}{skipped_note}",
+            "via_search": via_search,
+            "detail": f"Trailer downloaded to {trailer_path}{note}",
             "attempts": attempts if skipped else [],
             "excluded": excluded[:10]
         })
@@ -1809,19 +2041,27 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
             "status": "downloaded",
             "trailer": best["name"],
             "score": best["score"],
+            "via_search": via_search,
             "saved_to": trailer_path
         }, 200
 
     all_gone = all(video_is_gone(a["error"]) for a in attempts)
     if all_gone:
-        remaining = len(scored) - len(attempts)
         detail = (
-            f"All {len(attempts)} TMDB candidate(s) tried are unavailable on YouTube"
-            + (f" ({remaining} lower-scored not tried)" if remaining > 0 else "")
-            + ": "
-            + "; ".join(f"{a['name']} ({a['key']}): {a['error']}" for a in attempts)
-            + ". Use Force with a YouTube ID."
+            f"All {len(attempts)} candidate(s) tried are unavailable on YouTube: "
+            + "; ".join(
+                f"{a['name']} ({a['key']}{', search' if a['via_search'] else ''}): {a['error']}"
+                for a in attempts
+            )
+            + "."
         )
+        if searched and not any(a["via_search"] for a in attempts):
+            detail += (
+                " YouTube search found nothing suitable."
+                if not search_info.get("search_error")
+                else f" YouTube search failed: {search_info['search_error']}"
+            )
+        detail += " Use Force with a YouTube ID."
     else:
         detail = result["error"]
 
@@ -1844,7 +2084,7 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
         15158332,
         f"❌ Trailer failed — {title} ({year})",
         (
-            f"All {len(attempts)} TMDB trailer(s) are unavailable on YouTube. "
+            f"All {len(attempts)} trailer(s) tried are unavailable on YouTube. "
             "Use Force with a YouTube ID."
             if all_gone else
             "yt-dlp failed. Check Activity or container logs for details."
@@ -2486,7 +2726,8 @@ def collect_settings_form(form):
             "watch_interval_minutes",
             cfg("watch_interval_minutes")
         ),
-        "season_fallback": form.get("season_fallback", cfg("season_fallback"))
+        "season_fallback": form.get("season_fallback", cfg("season_fallback")),
+        "youtube_search": form.get("youtube_search", cfg("youtube_search"))
     }
     scalar_values = validate_settings_scalars(scalar_values)
 
@@ -2754,7 +2995,8 @@ def settings_page():
             "video_quality": cfg("video_quality"),
             "max_concurrent_downloads": cfg("max_concurrent_downloads"),
             "watch_interval_minutes": cfg("watch_interval_minutes"),
-            "season_fallback": season_fallback_mode()
+            "season_fallback": season_fallback_mode(),
+            "youtube_search": "on" if youtube_search_enabled() else "off"
         },
         connections=[
             connection_public(c, webhook_status, watch_state)
