@@ -1,5 +1,18 @@
 # Trailarr Parrk — Changelog
 
+## v0.6.3 — Fewer missed trailers
+
+### Fixed
+- When the best TMDB trailer is unavailable on YouTube (removed, private, region-blocked, age-restricted, members-only), Trailarr now tries the next candidates, up to 5. Previously one dead link meant no trailer even when TMDB listed others.
+- Errors that would hit every candidate (YouTube bot check, network, timeouts) stop immediately instead of retrying.
+- When every candidate is unavailable, Activity and Discord say so and list what was tried, instead of the raw yt-dlp error.
+- TV shows with no show-level trailer on TMDB now fall back to season trailers. Long-running shows (Grey's Anatomy, Law & Order: SVU and similar) keep their trailers on seasons. New setting **TV season fallback** (Matching): `First season` (default, spoiler-free: season 1, then 2), `Latest season` (latest, previous, then season 1) or `Off` (report no trailer, as the original script did). Env: `SEASON_FALLBACK`.
+- Default preferred terms now include `season 1`, `season 01` and `announcement` (from the original script), so first-season and announcement trailers get +10. Existing installs keep their saved terms; add these in Settings → Matching.
+- Preferred terms ending in a number no longer match a longer number: `season 1` matches "Season 1" but not "Season 10" or "Season 12".
+- Spoiler guard: show-level trailers whose title mentions a later season ("Season 8 Official Trailer", "S19", "Final Season") are ranked behind every spoiler-free trailer. They are still used when nothing else exists.
+- The `No matching trailers` message lists which seasons were checked.
+- Sonarr series now use Sonarr's own TMDB ID (Sonarr v4 API and webhooks), as the original script did. TMDB's TVDB lookup is only a fallback, followed by an IMDb lookup, so shows TMDB can't match by TVDB ID no longer end in `no_tmdb_match`.
+
 ## v0.6.2 — Watcher and webhook fixes
 
 ### Added

@@ -2,9 +2,9 @@
 
 Downloads local trailers for Radarr/Sonarr libraries using TMDB + yt-dlp.
 
-Current release: **v0.6.2**
+Current release: **v0.6.3** · Source, issues and releases: [gitea.icarus-ii.com/izsez/trailarr-parrk](https://gitea.icarus-ii.com/izsez/trailarr-parrk)
 
-v0.6.2 adds a Radarr/Sonarr API watcher (no webhook needed), fixes webhooks reporting trailers as downloaded for newly added films, and finds original-language trailers for anime and other non-English titles. v0.6.1 added safe batch cancellation, automatic daily yt-dlp update checks, clearer configured-state handling and fixes trailer finalization for paths containing characters such as `[tmdbid-123456]`.
+v0.6.3 tries the next TMDB trailer when YouTube says a video is unavailable, falls back to season trailers for shows with no show-level trailer (first season by default, configurable), and ranks later-season trailers behind spoiler-free ones. v0.6.2 added a Radarr/Sonarr API watcher (no webhook needed), fixes webhooks reporting trailers as downloaded for newly added films, and finds original-language trailers for anime and other non-English titles. v0.6.1 added safe batch cancellation, automatic daily yt-dlp update checks, clearer configured-state handling and fixes trailer finalization for paths containing characters such as `[tmdbid-123456]`.
 
 ---
 
@@ -83,7 +83,19 @@ On Unraid, `99:100` (`nobody:users`) is a common mapping, but use the IDs that m
 
 ## Start / upgrade
 
+First install:
+
 ```bash
+git clone https://gitea.icarus-ii.com/izsez/trailarr-parrk.git
+cd trailarr-parrk
+docker compose up -d --build
+```
+
+Upgrade an existing install:
+
+```bash
+cd trailarr-parrk
+git pull
 docker compose up -d --build
 ```
 

@@ -100,6 +100,11 @@
       <div class="fields">
         <div class="field-wide"><label for="preferred_terms">Preferred terms</label><div><textarea id="preferred_terms" name="preferred_terms">{{ settings.preferred_terms }}</textarea><div class="help">Comma-separated. `teaser` scores +5; other preferred terms score +10. TMDB Trailer/Teaser type and Official flag are also considered for these baseline terms.</div></div></div>
         <div class="field-wide"><label for="excluded_terms">Excluded terms</label><textarea id="excluded_terms" name="excluded_terms">{{ settings.excluded_terms }}</textarea></div>
+        <div class="field-wide"><label for="season_fallback">TV season fallback</label><div><select id="season_fallback" name="season_fallback">
+          <option value="first" {{ 'selected' if settings.season_fallback == 'first' else '' }}>First season (spoiler-free)</option>
+          <option value="latest" {{ 'selected' if settings.season_fallback == 'latest' else '' }}>Latest season</option>
+          <option value="off" {{ 'selected' if settings.season_fallback == 'off' else '' }}>Off — report no trailer</option>
+        </select><div class="help">Used only when a show has no show-level trailer on TMDB. Show trailers that mention a later season (“Season 8 Trailer”, “Final Season”) are always ranked behind spoiler-free ones.</div></div></div>
       </div>
     </div>
 

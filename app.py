@@ -29,7 +29,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-APP_VERSION = "0.6.2"
+APP_VERSION = "0.6.3"
 
 
 # ── Paths / persistent state ──────────────────────────────────────────────
@@ -85,7 +85,7 @@ DEFAULT_SETTINGS = {
     "media_root": os.environ.get("MEDIA_ROOT", "/data/media"),
     "preferred_terms": os.environ.get(
         "PREFERRED_TERMS",
-        "official,trailer,teaser,theatrical"
+        "official,trailer,teaser,theatrical,season 1,season 01,announcement"
     ),
     "excluded_terms": os.environ.get(
         "EXCLUDED_TERMS",
@@ -106,7 +106,9 @@ DEFAULT_SETTINGS = {
     ),
     # Minutes between Arr API checks for new imports/upgrades (Radarr) and
     # newly added series (Sonarr). 0 disables the watcher.
-    "watch_interval_minutes": os.environ.get("WATCH_INTERVAL_MINUTES", "5")
+    "watch_interval_minutes": os.environ.get("WATCH_INTERVAL_MINUTES", "5"),
+    # TV shows with no show-level trailer: off | first | latest season.
+    "season_fallback": os.environ.get("SEASON_FALLBACK", "first")
 }
 
 SETTINGS_LOCK = threading.RLock()
@@ -314,6 +316,10 @@ def validate_settings_scalars(values):
     if not max_downloads.isdigit() or not 1 <= int(max_downloads) <= 4:
         raise ValueError("Concurrent downloads must be between 1 and 4.")
 
+    season_fallback = str(values.get("season_fallback", "first")).strip().lower()
+    if season_fallback not in SEASON_FALLBACK_MODES:
+        raise ValueError("Season fallback must be off, first or latest.")
+
     watch_interval = str(values.get("watch_interval_minutes", "5")).strip()
     if not watch_interval.isdigit() or not 0 <= int(watch_interval) <= 1440:
         raise ValueError("Watch interval must be between 0 (off) and 1440 minutes.")
@@ -345,6 +351,7 @@ def validate_settings_scalars(values):
         "video_quality": quality,
         "max_concurrent_downloads": max_downloads,
         "watch_interval_minutes": watch_interval,
+        "season_fallback": season_fallback,
         "trailer_folder": trailer_folder,
         "filename_template": filename_template,
         "preferred_terms": str(values.get("preferred_terms", "")).strip(),
@@ -670,22 +677,71 @@ def tmdb_get(path, params=None):
     return tmdb_get_with_token(str(cfg("tmdb_api_key") or ""), path, params)
 
 
-def tvdb_to_tmdb(tvdb_id):
+def tmdb_find_tv(external_id, source):
+    """Look up a TMDB show ID by external ID (source: tvdb_id or imdb_id)."""
     try:
-        data = tmdb_get(
-            f"/find/{tvdb_id}",
-            {"external_source": "tvdb_id"}
-        )
+        data = tmdb_get(f"/find/{external_id}", {"external_source": source})
     except Exception as e:
-        log.error(f"TVDB→TMDB lookup failed: {e}")
+        log.warning(f"TMDB lookup by {source} {external_id} failed: {e}")
         return None
-
     results = data.get("tv_results", [])
-    if not results:
-        log.error(f"No TMDB match found for tvdbId {tvdb_id}.")
-        return None
+    return results[0].get("id") if results else None
 
-    return results[0].get("id")
+
+def tvdb_to_tmdb(tvdb_id):
+    tmdb_id = tmdb_find_tv(tvdb_id, "tvdb_id") if tvdb_id else None
+    if not tmdb_id:
+        log.error(f"No TMDB match found for tvdbId {tvdb_id}.")
+    return tmdb_id
+
+
+def positive_int(value):
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
+
+
+def resolve_tv_tmdb(tmdb_id=None, tvdb_id=None, imdb_id=None):
+    """TMDB ID for a Sonarr series.
+
+    Sonarr v4 supplies tmdbId directly (as the original script used). Older
+    Sonarr or unmatched series fall back to TMDB's TVDB lookup, then IMDb.
+    """
+    direct = positive_int(tmdb_id)
+    if direct:
+        return direct
+
+    if positive_int(tvdb_id):
+        found = tmdb_find_tv(tvdb_id, "tvdb_id")
+        if found:
+            log.info(f"TMDB ID {found} found via TVDB {tvdb_id}.")
+            return found
+
+    imdb = str(imdb_id or "").strip()
+    if re.fullmatch(r"tt\d+", imdb):
+        found = tmdb_find_tv(imdb, "imdb_id")
+        if found:
+            log.info(f"TMDB ID {found} found via IMDb {imdb}.")
+            return found
+
+    log.error(
+        f"No TMDB match for series (tmdbId={tmdb_id}, tvdbId={tvdb_id}, imdbId={imdb_id or '-'})."
+    )
+    return None
+
+
+def term_in_name(term, name_lower):
+    """Substring match, except a term ending in a digit must not be followed
+    by another digit: "season 1" matches "Season 1 Trailer" but not
+    "Season 12 Trailer"."""
+    term = term.strip().lower()
+    if not term:
+        return False
+    if term[-1].isdigit():
+        return re.search(re.escape(term) + r"(?!\d)", name_lower) is not None
+    return term in name_lower
 
 
 def score_candidate(video, preferred_terms):
@@ -712,7 +768,7 @@ def score_candidate(video, preferred_terms):
             matched_term = video_type == "Teaser"
             points = 5  # v0.5.2: teasers are deliberately lower priority.
         else:
-            matched_term = term in name_lower
+            matched_term = term_in_name(term, name_lower)
 
         if matched_term:
             score += points
@@ -721,7 +777,7 @@ def score_candidate(video, preferred_terms):
     return score, matched
 
 
-def tmdb_video_languages(tmdb_id, media_type):
+def tmdb_video_languages(tmdb_id, media_type, details=None):
     """Languages to request from TMDB /videos.
 
     Without include_video_language TMDB only returns English videos, which
@@ -729,47 +785,142 @@ def tmdb_video_languages(tmdb_id, media_type):
     for English, the title's original language and untagged (null) videos.
     """
     languages = ["en"]
-    try:
-        details = tmdb_get(f"/{media_type}/{tmdb_id}")
-        original = str(details.get("original_language") or "").strip().lower()
-        if re.fullmatch(r"[a-z]{2}", original) and original not in languages:
-            languages.append(original)
-    except Exception as e:
-        log.warning(f"TMDB details lookup failed, using English only: {e}")
+    original = str((details or {}).get("original_language") or "").strip().lower()
+    if re.fullmatch(r"[a-z]{2}", original) and original not in languages:
+        languages.append(original)
     languages.append("null")
     return languages
 
 
+def tmdb_details(tmdb_id, media_type):
+    try:
+        return tmdb_get(f"/{media_type}/{tmdb_id}") or {}
+    except Exception as e:
+        log.warning(f"TMDB details lookup failed, using English only: {e}")
+        return {}
+
+
+def youtube_trailers(videos):
+    return [
+        r for r in videos
+        if r.get("site") == "YouTube"
+        and r.get("type") in ("Trailer", "Teaser")
+    ]
+
+
+SEASON_FALLBACK_MODES = ("off", "first", "latest")
+
+
+def season_fallback_mode():
+    mode = str(cfg("season_fallback") or "first").strip().lower()
+    return mode if mode in SEASON_FALLBACK_MODES else "first"
+
+
+def tv_fallback_seasons(details, mode=None):
+    """Seasons to try when a show has no show-level trailer.
+
+    first:  season 1, then season 2 (spoiler-free; the default).
+    latest: latest season, the one before it, then season 1.
+    off:    none — report no trailer, as the original script did.
+    Specials (season 0) are skipped. At most three lookups per show.
+    """
+    mode = mode or season_fallback_mode()
+    if mode == "off":
+        return []
+    numbers = sorted(
+        int(season.get("season_number"))
+        for season in (details.get("seasons") or [])
+        if isinstance(season.get("season_number"), int)
+        and season.get("season_number") > 0
+    )
+    if mode == "latest":
+        candidates = numbers[-1:] + numbers[-2:-1] + numbers[:1]
+    else:
+        candidates = numbers[:2]
+    ordered = []
+    for number in candidates:
+        if number not in ordered:
+            ordered.append(number)
+    return ordered
+
+
+SPOILER_SEASON_PATTERNS = (
+    re.compile(r"\bseason\s*(\d{1,2})\b"),
+    re.compile(r"\bseries\s*(\d{1,2})\b"),
+    re.compile(r"\bs(\d{1,2})\b"),
+    re.compile(r"\b(\d{1,2})(?:st|nd|rd|th)\s+season\b"),
+)
+SPOILER_WORDS = ("final season", "last season", "series finale", "final chapter")
+
+
+def later_season_in_name(name):
+    """Season number > 1 mentioned in a show-level trailer title, else 0.
+
+    Show-level TMDB lists often mix in later-season trailers ("Season 8
+    Official Trailer"). Those are sorted behind spoiler-free trailers.
+    """
+    text = str(name or "").lower()
+    if any(word in text for word in SPOILER_WORDS):
+        return 99
+    for pattern in SPOILER_SEASON_PATTERNS:
+        for match in pattern.finditer(text):
+            number = int(match.group(1))
+            if number > 1:
+                return number
+    return 0
+
+
 def fetch_and_score(tmdb_id, media_type, info=None):
     info = info if info is not None else {}
-    languages = tmdb_video_languages(tmdb_id, media_type)
+    details = tmdb_details(tmdb_id, media_type)
+    languages = tmdb_video_languages(tmdb_id, media_type, details)
     info["languages"] = [lang for lang in languages if lang != "null"]
+    params = {
+        "language": "en-US",
+        "include_video_language": ",".join(languages)
+    }
 
     try:
-        data = tmdb_get(
-            f"/{media_type}/{tmdb_id}/videos",
-            {
-                "language": "en-US",
-                "include_video_language": ",".join(languages)
-            }
-        )
+        data = tmdb_get(f"/{media_type}/{tmdb_id}/videos", params)
     except Exception as e:
         log.error(f"TMDB videos request failed: {e}")
         info["error"] = str(e)
         return [], []
 
     all_videos = data.get("results", [])
-    results = [
-        r for r in all_videos
-        if r.get("site") == "YouTube"
-        and r.get("type") in ("Trailer", "Teaser")
-    ]
+    results = youtube_trailers(all_videos)
+    info["source"] = "show" if media_type == "tv" else "movie"
+    from_season = False
+
+    # Long-running shows often have no show-level trailer on TMDB; the
+    # trailers are attached to individual seasons instead.
+    if media_type == "tv" and not results:
+        checked = []
+        for season_number in tv_fallback_seasons(details):
+            checked.append(season_number)
+            try:
+                season_data = tmdb_get(
+                    f"/tv/{tmdb_id}/season/{season_number}/videos", params
+                )
+            except Exception as e:
+                log.warning(f"TMDB season {season_number} videos failed: {e}")
+                continue
+            season_videos = season_data.get("results", [])
+            all_videos = all_videos + season_videos
+            results = youtube_trailers(season_videos)
+            if results:
+                info["source"] = f"season {season_number}"
+                from_season = True
+                break
+        info["seasons_checked"] = checked
+
     info["total_videos"] = len(all_videos)
     info["trailer_count"] = len(results)
 
     log.info(
         f"TMDB returned {len(results)} YouTube trailer/teaser(s) "
-        f"of {len(all_videos)} video(s) [{', '.join(info['languages'])}]."
+        f"of {len(all_videos)} video(s) [{', '.join(info['languages'])}] "
+        f"from {info['source']}."
     )
 
     preferred_terms = cfg_list("preferred_terms")
@@ -795,6 +946,12 @@ def fetch_and_score(tmdb_id, media_type, info=None):
 
         score, matched = score_candidate(video, preferred_terms)
         if score > 0:
+            # Spoiler guard: only for a show's own list. Trailers fetched for
+            # a specific season are season trailers by design.
+            later = (
+                later_season_in_name(name)
+                if media_type == "tv" and not from_season else 0
+            )
             scored.append({
                 "score": score,
                 "key": key,
@@ -802,12 +959,16 @@ def fetch_and_score(tmdb_id, media_type, info=None):
                 "type": video.get("type", ""),
                 "official": bool(video.get("official", False)),
                 "language": video.get("iso_639_1") or "",
+                "later_season": later,
                 "matched_terms": matched
             })
 
-    # Equal scores: prefer full trailers, then official, then English.
+    # Spoiler-free first, then score; equal scores prefer full trailers,
+    # then official, then English. Later-season trailers stay usable when
+    # nothing else exists.
     scored.sort(
         key=lambda item: (
+            not item.get("later_season"),
             item["score"],
             item.get("type") == "Trailer",
             item.get("official", False),
@@ -1255,8 +1416,9 @@ def normalize_sonarr(series, connection):
         "title": series.get("title", "Unknown"),
         "year": series.get("year", ""),
         "path": series.get("path", ""),
-        "tmdb_id": None,
+        "tmdb_id": positive_int(series.get("tmdbId")),
         "tvdb_id": series.get("tvdbId"),
+        "imdb_id": series.get("imdbId") or "",
         "monitored": series.get("monitored", True),
         "has_media": True
     }
@@ -1452,6 +1614,43 @@ def context_for_item(item, library=None, trigger="Web UI"):
 
 # ── Core grab logic ──────────────────────────────────────────────────────
 
+# yt-dlp errors that mean "this particular video can't be had", so the next
+# TMDB candidate is worth trying. Anything else (bot checks, network, timeouts,
+# yt-dlp breakage) would fail the same way for every candidate.
+VIDEO_GONE_PATTERNS = (
+    "video unavailable",
+    "this video is unavailable",
+    "is not available",
+    "not available in your country",
+    "uploader has not made this video available",
+    "blocked it in your country",
+    "private video",
+    "video has been removed",
+    "account associated with this video has been terminated",
+    "copyright",
+    "sign in to confirm your age",
+    "age-restricted",
+    "members-only",
+    "join this channel",
+    "premieres in",
+    "this live event will begin",
+)
+MAX_CANDIDATE_ATTEMPTS = 5
+
+
+def video_is_gone(error):
+    text = str(error or "").lower()
+    if "confirm you're not a bot" in text or "confirm you’re not a bot" in text:
+        return False
+    return any(pattern in text for pattern in VIDEO_GONE_PATTERNS)
+
+
+def short_ytdlp_error(error):
+    lines = [line.strip() for line in str(error or "").splitlines() if line.strip()]
+    errors = [line for line in lines if line.startswith("ERROR")]
+    return (errors[-1] if errors else (lines[-1] if lines else "yt-dlp failed."))[:300]
+
+
 def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
                 context=None, skip_existing=False):
     context = context or {}
@@ -1484,9 +1683,16 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
         if fetch_info.get("error"):
             reason = f"TMDB request failed: {fetch_info['error']}"
         elif not fetch_info.get("trailer_count"):
+            seasons = fetch_info.get("seasons_checked") or []
+            season_note = (
+                f"; also checked season{'s' if len(seasons) > 1 else ''} "
+                f"{', '.join(str(n) for n in seasons)}"
+                if seasons else ""
+            )
             reason = (
                 f"TMDB lists no YouTube trailers or teasers for this title "
-                f"(languages checked: {langs}). Use Force with a YouTube ID."
+                f"(languages checked: {langs}{season_note}). "
+                f"Use Force with a YouTube ID."
             )
         else:
             reason = (
@@ -1528,7 +1734,34 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
             "would_save_to": f"{out}.mkv"
         }, 200
 
-    result = download(best["key"], out)
+    attempts = []
+    result = None
+    for candidate in scored[:MAX_CANDIDATE_ATTEMPTS]:
+        result = download(candidate["key"], out)
+        attempts.append({
+            "key": candidate["key"],
+            "name": candidate["name"],
+            "ok": result["ok"],
+            "error": "" if result["ok"] else short_ytdlp_error(result["error"])
+        })
+        if result["ok"]:
+            best = candidate
+            break
+        best = candidate
+        if not video_is_gone(result["error"]):
+            break
+        log.info(
+            f"  {candidate['key']} unavailable, trying next candidate "
+            f"({len(attempts)}/{min(len(scored), MAX_CANDIDATE_ATTEMPTS)})."
+        )
+
+    skipped = [a for a in attempts if not a["ok"]]
+    skipped_note = (
+        f" — skipped {len(skipped)} unavailable: "
+        + ", ".join(f"{a['name']} ({a['key']})" for a in skipped)
+        + "."
+        if result["ok"] and skipped else ""
+    )
 
     if result["ok"]:
         trailer_path = result["path"]
@@ -1567,7 +1800,8 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
             "score": best["score"],
             "duration": result["duration"],
             "saved_to": trailer_path,
-            "detail": f"Trailer downloaded to {trailer_path}",
+            "detail": f"Trailer downloaded to {trailer_path}{skipped_note}",
+            "attempts": attempts if skipped else [],
             "excluded": excluded[:10]
         })
 
@@ -1577,6 +1811,19 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
             "score": best["score"],
             "saved_to": trailer_path
         }, 200
+
+    all_gone = all(video_is_gone(a["error"]) for a in attempts)
+    if all_gone:
+        remaining = len(scored) - len(attempts)
+        detail = (
+            f"All {len(attempts)} TMDB candidate(s) tried are unavailable on YouTube"
+            + (f" ({remaining} lower-scored not tried)" if remaining > 0 else "")
+            + ": "
+            + "; ".join(f"{a['name']} ({a['key']}): {a['error']}" for a in attempts)
+            + ". Use Force with a YouTube ID."
+        )
+    else:
+        detail = result["error"]
 
     record_activity({
         **context,
@@ -1589,13 +1836,19 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
         "trailer_name": best["name"],
         "score": best["score"],
         "duration": result["duration"],
-        "detail": result["error"]
+        "attempts": attempts,
+        "detail": detail
     })
 
     notify(
         15158332,
         f"❌ Trailer failed — {title} ({year})",
-        "yt-dlp failed. Check Activity or container logs for details."
+        (
+            f"All {len(attempts)} TMDB trailer(s) are unavailable on YouTube. "
+            "Use Force with a YouTube ID."
+            if all_gone else
+            "yt-dlp failed. Check Activity or container logs for details."
+        )
     )
 
     return {"status": "download_failed", "error": result["error"]}, 500
@@ -1628,8 +1881,9 @@ def grab_library_item(library_id, item_id, dry_run=False, trigger="Web UI"):
             dry_run=dry_run, context=context
         )
 
-    tvdb_id = item.get("tvdb_id")
-    tmdb_id = tvdb_to_tmdb(tvdb_id) if tvdb_id else None
+    tmdb_id = resolve_tv_tmdb(
+        item.get("tmdb_id"), item.get("tvdb_id"), item.get("imdb_id")
+    )
     if not tmdb_id:
         return {"status": "no_tmdb_match"}, 200
 
@@ -2003,8 +2257,9 @@ def watcher_grab(connection, item, reason):
         tmdb_id = item.get("tmdb_id")
         media_type = "movie"
     else:
-        tvdb_id = item.get("tvdb_id")
-        tmdb_id = tvdb_to_tmdb(tvdb_id) if tvdb_id else None
+        tmdb_id = resolve_tv_tmdb(
+            item.get("tmdb_id"), item.get("tvdb_id"), item.get("imdb_id")
+        )
         media_type = "tv"
 
     if not tmdb_id:
@@ -2230,7 +2485,8 @@ def collect_settings_form(form):
         "watch_interval_minutes": form.get(
             "watch_interval_minutes",
             cfg("watch_interval_minutes")
-        )
+        ),
+        "season_fallback": form.get("season_fallback", cfg("season_fallback"))
     }
     scalar_values = validate_settings_scalars(scalar_values)
 
@@ -2497,7 +2753,8 @@ def settings_page():
             "filename_template": cfg("filename_template"),
             "video_quality": cfg("video_quality"),
             "max_concurrent_downloads": cfg("max_concurrent_downloads"),
-            "watch_interval_minutes": cfg("watch_interval_minutes")
+            "watch_interval_minutes": cfg("watch_interval_minutes"),
+            "season_fallback": season_fallback_mode()
         },
         connections=[
             connection_public(c, webhook_status, watch_state)
@@ -2894,8 +3151,9 @@ def _webhook_handler(payload, connection_id=None):
                 folder_path, event_type, "sonarr"
             )
 
-        tvdb_id = series.get("tvdbId")
-        tmdb_id = tvdb_to_tmdb(tvdb_id) if tvdb_id else None
+        tmdb_id = resolve_tv_tmdb(
+            series.get("tmdbId"), series.get("tvdbId"), series.get("imdbId")
+        )
         if not tmdb_id:
             return jsonify({"status": "no_tmdb_match"}), 200
 

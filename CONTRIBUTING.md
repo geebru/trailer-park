@@ -2,11 +2,13 @@
 
 Thank you for helping improve Trailarr Parrk. This project downloads and manages local trailers for Radarr and Sonarr libraries using TMDB and yt-dlp.
 
-This guide applies to the v0.6.2 codebase. Please read the [README](README.md) and [CHANGELOG](CHANGELOG.md) before making changes.
+This guide applies to the v0.6.3 codebase. Please read the [README](README.md) and [CHANGELOG](CHANGELOG.md) before making changes.
+
+The project lives at **https://gitea.icarus-ii.com/izsez/trailarr-parrk**. Issues, pull requests and releases are handled there.
 
 ## Before you start
 
-- Check existing issues and pull requests before starting substantial work.
+- Check existing [issues](https://gitea.icarus-ii.com/izsez/trailarr-parrk/issues) and [pull requests](https://gitea.icarus-ii.com/izsez/trailarr-parrk/pulls) before starting substantial work.
 - For significant features or behavioral changes, open an issue first to discuss the intended behavior and compatibility implications.
 - Keep pull requests focused. Separate unrelated bug fixes, refactoring, and features.
 - Never include API keys, TMDB tokens, Discord webhook URLs, personal media paths, or downloaded media in issues, logs, or commits.
@@ -28,7 +30,13 @@ Runtime state is stored under `/config` and must not be committed.
 
 Docker is the recommended way to reproduce the supported runtime.
 
-1. Clone the repository and enter its directory.
+1. Clone the repository and enter its directory:
+
+   ```bash
+   git clone https://gitea.icarus-ii.com/izsez/trailarr-parrk.git
+   cd trailarr-parrk
+   ```
+
 2. Copy or adapt `docker-compose.yml` for your environment.
 3. Replace `/path/to/media` with a **test media directory** that you can safely modify. Keep `./config:/config` for persistent settings.
 4. Ensure the external Docker network `media-network` exists, or adjust the Compose network configuration for your setup.
@@ -84,6 +92,9 @@ Media operations require extra care:
 - **Radarr/Sonarr:** Support multiple connections and libraries, including root-path filters. Avoid duplicate library matches and preserve connection-specific webhook behavior.
 - **Automatic grabs:** there are two triggers, and both must stay safe to run together. The webhook acts only on `Download` (Radarr/Sonarr import/upgrade) and Sonarr `SeriesAdd`; `Grab` and `MovieAdded` are deferred, everything else is ignored. The API watcher detects Radarr file-ID changes (import/upgrade) and new Sonarr series, records a baseline on its first check, and never backfills. Both pass `skip_existing=True`, so whichever runs second is a no-op.
 - **TMDB languages:** `/videos` returns English only unless `include_video_language` is set. Keep requesting English, the title's original language and `null`.
+- **TV trailers:** show-level trailers always come first. Only when there are none, fall back to season trailers per the `season_fallback` setting (`first` default, `latest`, `off`), capped at three lookups. Never let a later-season trailer (`later_season_in_name`) outrank a spoiler-free one.
+- **Sonarr TMDB IDs:** use the series' own `tmdbId` first; fall back to TMDB `/find` by TVDB ID, then IMDb ID (`resolve_tv_tmdb`).
+- **Unavailable videos:** only errors about the video itself (`video_is_gone`) move on to the next candidate (max 5). Bot checks, network errors and timeouts must stop the loop.
 - **TMDB:** Preserve trailer selection/scoring behavior unless a change is intentional and documented. Handle missing or malformed external responses safely.
 - **yt-dlp:** Preserve the distinction between the bundled binary and the persistent `/config/bin/yt-dlp` override. Do not bypass checksum verification for in-app updates. Automatic update checks must not silently install a release.
 - **Discord:** Treat webhook URLs as secrets; notification failures must not compromise media operations.
@@ -91,7 +102,7 @@ Media operations require extra care:
 
 ## Testing changes
 
-There is no dedicated automated test suite included in the v0.6.2 archive. Contributors should describe the manual tests performed and add automated tests when practical, especially for bug fixes and path handling.
+There is no dedicated automated test suite included in the v0.6.3 archive. Contributors should describe the manual tests performed and add automated tests when practical, especially for bug fixes and path handling.
 
 At a minimum, verify relevant cases before opening a pull request:
 
@@ -118,7 +129,7 @@ This is only a syntax check, not a substitute for functional testing.
 
 ## Docker development, updates, and releases
 
-These instructions match the Dockerfile and Compose file supplied with **v0.6.2**. They describe a maintainer workflow; they do **not** imply that an automated CI pipeline, Docker Hub organization, or GitHub Container Registry publisher is already configured.
+These instructions match the Dockerfile and Compose file supplied with **v0.6.3**. They describe a maintainer workflow; they do **not** imply that an automated CI pipeline, Docker Hub organization, or GitHub Container Registry publisher is already configured.
 
 ### Prerequisites and first-time setup
 
@@ -169,7 +180,7 @@ The repository currently uses one Dockerfile at its root. It:
 4. Configures yt-dlp remote EJS components via `/etc/yt-dlp.conf`.
 5. Copies `app.py` and `templates/` to `/app`, exposes TCP port 8080, and starts Flask through Waitress.
 
-There is **no Dockerfile generator** in v0.6.2. To create an alternative image definition, copy the existing Dockerfile and adapt it deliberately:
+There is **no Dockerfile generator** in v0.6.3. To create an alternative image definition, copy the existing Dockerfile and adapt it deliberately:
 
 ```bash
 cp Dockerfile Dockerfile.dev
@@ -197,18 +208,18 @@ docker compose ps
 docker compose logs --tail=100 trailarr-parrk
 ```
 
-Open `http://localhost:8080` (or the appropriate Docker-host address), verify that the UI loads, and exercise the affected workflows against **test** Radarr/Sonarr data and disposable media. Confirm persistence across a restart and test downloads, cancellation, path handling, and replacement/deletion when relevant. The v0.6.2 archive does not ship an automated test suite, so a successful build alone is not release validation.
+Open `http://localhost:8080` (or the appropriate Docker-host address), verify that the UI loads, and exercise the affected workflows against **test** Radarr/Sonarr data and disposable media. Confirm persistence across a restart and test downloads, cancellation, path handling, and replacement/deletion when relevant. The v0.6.3 archive does not ship an automated test suite, so a successful build alone is not release validation.
 
 ### Build and tag a new version
 
-After making and testing release changes, select a new version (example: `v0.6.3`) and update `README.md` and `CHANGELOG.md` consistently. The commands below create local image tags; they do not publish anything:
+After making and testing release changes, select a new version (example: `v0.6.4`) and update `README.md` and `CHANGELOG.md` consistently. The commands below create local image tags; they do not publish anything:
 
 ```bash
-docker build --pull -t trailarr-parrk:v0.6.3 -t trailarr-parrk:latest .
+docker build --pull -t trailarr-parrk:v0.6.4 -t trailarr-parrk:latest .
 docker image ls trailarr-parrk
 ```
 
-The example version is illustrative, not an announcement that v0.6.3 exists. Use the actual approved release version and avoid moving `latest` unless the release is stable.
+The example version is illustrative, not an announcement that v0.6.4 exists. Use the actual approved release version and avoid moving `latest` unless the release is stable.
 
 ### Multi-platform images: amd64 and arm64
 
@@ -224,8 +235,8 @@ If that builder already exists, select it with `docker buildx use trailarr-build
 A multi-platform image is normally pushed directly to a registry rather than imported with `--load` into the classic Docker image store. The following is an **optional publishing example**—replace the registry path with one you control:
 
 ```bash
-export IMAGE=ghcr.io/YOUR_GITHUB_USERNAME/trailarr-parrk
-export VERSION=v0.6.2
+export IMAGE=gitea.icarus-ii.com/izsez/trailarr-parrk
+export VERSION=v0.6.3
 
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
@@ -240,28 +251,23 @@ Only use `--push` after authenticating, verifying registry permissions, and obta
 
 Publishing requires registry credentials and an authorized image namespace. Never commit registry tokens.
 
-For **GitHub Container Registry**, authenticate using a token with appropriate package permissions (enter the token through standard input, not directly in shell history), then push an image:
+The project's registry is the **Gitea container registry** on the project host. Images appear under the repository owner's *Packages* tab. Authenticate with a Gitea access token that has package write permission (Settings → Applications → Generate Token). Pass it through standard input, not on the command line:
 
 ```bash
-export IMAGE=ghcr.io/YOUR_GITHUB_USERNAME/trailarr-parrk
-export VERSION=v0.6.2
+export IMAGE=gitea.icarus-ii.com/izsez/trailarr-parrk
+export VERSION=v0.6.3
 
-# Provide a token securely in your environment as CR_PAT.
-printf '%s' "$CR_PAT" | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
+# Provide the token securely in your environment as GITEA_TOKEN.
+printf '%s' "$GITEA_TOKEN" | docker login gitea.icarus-ii.com -u izsez --password-stdin
 
-docker build --pull -t "$IMAGE:$VERSION" .
+docker build --pull -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
 docker push "$IMAGE:$VERSION"
+docker push "$IMAGE:latest"
 ```
 
-For **Docker Hub**, authenticate to Docker Hub, then tag and push using your own namespace:
+Only the maintainer publishes to this registry. Contributors who want to test a published image should push to their own namespace instead.
 
-```bash
-docker login
-docker build --pull -t YOUR_DOCKERHUB_USERNAME/trailarr-parrk:v0.6.2 .
-docker push YOUR_DOCKERHUB_USERNAME/trailarr-parrk:v0.6.2
-```
-
-These are alternative publication paths. Neither registry nor a release workflow is configured in the supplied archive. For multi-platform publication, use the Buildx procedure above with your chosen image name; a conventional single-platform `docker push` does not produce a multi-platform manifest by itself.
+No automated release workflow (Gitea Actions) is configured yet; images are built and pushed manually. For multi-platform publication, use the Buildx procedure above with your chosen image name; a conventional single-platform `docker push` does not produce a multi-platform manifest by itself.
 
 ### End-to-end release checklist
 
@@ -272,13 +278,13 @@ These are alternative publication paths. Neither registry nor a release workflow
 5. Tag the source and image with the **same** version. For example, after reviewing the commit:
 
    ```bash
-   git tag v0.6.2
+   git tag v0.6.4
    # Push only when authorized and the correct remote/branch is confirmed:
-   git push origin v0.6.2
+   git push origin v0.6.4
    ```
 
 6. If you maintain published images, push the intended tags to your configured registry; update `latest` only when appropriate.
-7. Publish release notes and deployment/upgrade instructions in the repository hosting service if your project uses releases.
+7. Tag the release (`git tag v0.6.x && git push --tags`) and publish a Gitea release from that tag (Releases → New Release), using the matching `CHANGELOG.md` section as the notes, including any deployment/upgrade instructions.
 8. Recreate a test installation using the published image (or rebuilt source), check logs, confirm `/config` persistence, and verify media permissions.
 
 **Rollback:** Keep the previous known-good image tag and a backup of `/config`. To revert a registry-based deployment, change its image reference to the previous tag and recreate the container. For the supplied `build: .` Compose setup, restore the previous tested source revision before rebuilding. Restoring an older application version does not automatically reverse changes made to settings or media; test rollback compatibility and restore backups when necessary.
@@ -303,7 +309,7 @@ Screenshots are helpful for UI changes. Redact credentials, hostnames, and priva
 
 ## Reporting bugs and security issues
 
-For ordinary bugs, provide the Trailarr Parrk version, Docker environment, reproduction steps, expected behavior, actual behavior, and sanitized logs.
+Open bugs at https://gitea.icarus-ii.com/izsez/trailarr-parrk/issues. For ordinary bugs, provide the Trailarr Parrk version, Docker environment, reproduction steps, expected behavior, actual behavior, and sanitized logs.
 
 For vulnerabilities involving unauthenticated access, path traversal, arbitrary file modification, credential disclosure, or command execution, avoid posting exploit details or secrets in a public issue. Contact the repository maintainer privately through an available repository security-reporting channel instead. If no private channel is published, request one without disclosing the vulnerability details.
 
