@@ -2,17 +2,24 @@ services:
   trailarr-parrk:
     build: .
     container_name: trailarr-parrk
+
     networks:
-      - emberdark
+      - media-network
+
     volumes:
-      - /mnt/user/data/media:/data/media
-      - /mnt/user/appdata/trailarr-parrk/config:/config
+      - /path/to/media:/data/media
+      - ./config:/config
+
+    # Optional: run as a specific host UID:GID.
+    # Check the correct values on your host with: id
+    # user: "1000:1000"
+
     # Optional: expose the web UI on the Docker host.
     ports:
-      - "8087:8080"
+      - "8080:8080"
+
     restart: unless-stopped
-    mem_limit: 4g
 
 networks:
-  emberdark:
+  media-network:
     external: true
