@@ -1,0 +1,14 @@
+services:
+  trailarr-parrk:
+    build: .
+    container_name: trailarr-parrk
+    # user: "1000:1000"
+    networks:
+      - media-network
+    volumes:
+      - /path/to/media:/data/media
+      - ./config:/config
+    ports:
+      - "8080:8080"
+    network_mode: media-network
+    restart: unless-stopped

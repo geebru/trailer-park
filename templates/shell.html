@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en" data-theme="moss">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Trailarr Parrk</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='ui/favicon.svg') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='ui/css/tokens.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='ui/css/base.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='ui/css/components.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='ui/css/shell.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='ui/css/pages.css') }}">
+  <link rel="preload" href="{{ url_for('static', filename='ui/fonts/dm-sans-latin-400-normal.woff2') }}" as="font" type="font/woff2" crossorigin>
+  <link rel="modulepreload" href="{{ url_for('static', filename='ui/js/main.js') }}">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div id="shell"></div>
+  <noscript><p style="padding:2rem">Trailarr Parrk needs JavaScript. The classic pages are still available at <a href="/">/</a>.</p></noscript>
+  <script type="module" src="{{ url_for('static', filename='ui/js/main.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,67 @@
+# Trailarr Parrk: agent notes
+
+Flask + Waitress app that grabs trailers (TMDB + yt-dlp) for Radarr/Sonarr titles. Owner prefers simple, direct solutions. Remote is a private Gitea, not GitHub.
+
+## Layout
+- `engine.py`: all logic, no Flask. Nothing imports `app`.
+- `api.py`: JSON API blueprint at `/api`. `app.py`: HTML shell routes, `/health`, CLI.
+- `jobs.py`: in-memory jobs and batches. `library_cache.py`: item snapshots, rescans in the background.
+- `templates/shell.html` + `static/ui/` is the whole front end. No build step.
+- `dev/`: mock Arrs, fake media, `docker-compose.dev.yml` (bind-mounts source; restart the container to pick up edits).
+
+## Front end rules
+- Vanilla ES modules, `h()` element builder, client-side History router. No frameworks, no Tailwind, no CDN.
+- Style only through tokens in `css/tokens.css` (palette, then semantic layer). Theme is Moss (`data-theme`).
+- Icons: Font Awesome Free SVGs in `js/icons.js`. Fonts are self-hosted.
+- Modals use native `<dialog>` (`dialog.js`). Filters live in the URL. Keep a11y clean (axe AA, visible focus).
+- A button that can be disabled uses `setDisabled(button, reason)` from `tip.js` (empty reason enables it), never the `disabled` attribute, so every disabled action explains itself on hover, focus and tap. Native `disabled` stays for form fields, with a visible hint.
+- Add a page: route in `main.js`, module in `pages/` exporting `title` and `mount(container, {query, navigate})` (may return cleanup).
+
+## API conventions
+- Mutating requests need `Content-Type: application/json` (else 415). Errors: `{"error":{"code","message"}}`.
+- Long actions return 202 `{"job":{...}}`; poll `GET /api/jobs/<id>?after=<seq>`. One active job per item (409 `job_active`).
+- Items are addressed `/api/items/<connection_id>/<item_id>`. No library IDs; each connection is one synthetic library.
+- Secrets (TMDB key, Discord webhook) are never returned, only `configured` flags. Settings PUT is partial; `clear_<key>: true` clears a secret.
+
+## Behavior to keep
+- Missing = no trailer file under any name. File actions only touch detected trailers, never media files.
+- Replace/Force delete old files only after the new download succeeds. Renames never overwrite.
+- `matches_naming` ignores the extension, so changing mkv/mp4 never flags "Name mismatch".
+- Batches: one at a time, children are normal jobs, one Discord summary.
+- The automatic trigger is the API watcher only (no webhooks).
+
+## Checking changes
+- Python: `python -m py_compile engine.py api.py app.py jobs.py library_cache.py`, then exercise endpoints with Flask's test client or the dev stack. `engine.py` imports `fcntl`, so it only runs in Docker/Linux, not natively on Windows.
+- Front end: load the page in the browser pane and check the console. Scan every page the change touches with the vendored axe-core at 1280 px and 390 px, following `dev/axe/README.md` (serve `dev/axe` on port 8090, paste `dev/axe/scan.js`). Do not download another copy. Any violation is yours to explain or fix.
+- Dev stack (from the checkout you are working in): `python dev/stack.py up` creates the settings and fake media if missing, picks a free port (8100 up) and a name unique to this checkout, and prints the URL. `status` shows it; `down` stops it when finished. Restart the app container after Python edits (`docker restart <name>`, name from `status`); refresh the browser after template/static edits. Details in `dev/README.md`.
+- The owner's own stack may be running on 8080. The script never touches it, and you must only ever stop or remove containers you started.
+- Do not leave test fixtures in `dev/media`; reset with `dev/make_media.py --reset`.
+
+## Gitea
+- `python scripts/gitea.py` reads and writes issues and PRs (`--help` lists commands). Reads are public; writes need `GITEA_TOKEN` in the main checkout's `.env` (copy `.env.example`); from a worktree the script finds it there, so never copy `.env` into a worktree. Never print, read back or commit the token. Never read `dev/config`.
+- Work is tracked as issues labelled `bug`, `enhancement`, `chore`, `documentation` or `question`.
+- Status labels, set by `/triage` after the owner agrees: `agent-ready` (clear enough for `/work-issue` to take without a conversation), `needs-info` (questions asked on the issue), `needs-design` (the owner decides first: API, "Behavior to keep", new page or setting). They sit next to the type label. `gitea.py labels`, `new-label` and `label N --add/--remove` manage them.
+- The integration branch is `tp-ui`. Branch from it and open PRs against it, not `main`. The owner squash-merges in the Gitea UI. Push to `origin` only (never `izsez`).
+
+## Workflow
+Four skills drive it: `/triage` sorts the backlog (changes nothing until the owner approves); `/work-issue <N>` does the work and stops for review; `/preview` starts a local copy of the current branch for the owner to try by hand; `/ship` runs only after the owner approves. Any `agent-ready` issue can be pointed at `/work-issue`.
+
+**Work phase (`/work-issue`)**
+1. Read the issue and its comments (`gitea.py issue N`). Work in an isolated worktree on branch `<type>/<issue>-<slug>` cut from a fresh `origin/tp-ui`, e.g. `fix/31-tooltip-z-index`.
+2. By label:
+   - `bug`: reproduce first (dev stack, browser at 1280 px and 390 px) and keep before-evidence. Find the root cause, make the smallest fix, confirm the repro is gone, check neighbouring behavior. If you cannot reproduce it, say what you tried instead of guessing.
+   - `enhancement`: restate the acceptance criteria in two or three lines. If it changes the API contract, anything under "Behavior to keep", or needs a design call (new page, new setting), stop and ask before building. Follow the front end and API rules, run axe, update README/CHANGELOG when user-visible.
+   - `chore` / `documentation`: no behavior change; keep the diff small.
+   - `question`: draft the answer for the owner. No code.
+3. Verify with the checks above that fit the change. If something still fails after two honest attempts, stop and report.
+4. Commit on the branch, no need to ask. Conventional Commits, `type(scope): subject`:
+   - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
+   - Scope is the area, lowercase (`nav`, `sidebar`, `services`, `activity`, `jobs`, `settings`, `trailers`, `api`, `engine`). Omit it for repo-wide changes.
+   - Subject is imperative, lowercase, no period, under 72 characters. The body says why. Footer `Resolves #N` (finishes the issue) or `Refs #N` (part of it).
+   - One logical change per commit; no unrelated edits or formatting churn.
+   - Commits are GPG-signed. If signing fails or waits on a passphrase, stop and tell the owner. Never use `--no-verify` or `--no-gpg-sign`.
+5. **Stop and hand over a review package**: what was wrong and why, what changed (files and commit list), before/after evidence, checks run and results, risks, and what you could not verify. Do not push.
+
+**Ship phase (`/ship`)**, only after the owner says the work is approved: push the branch to `origin`, open a PR against `tp-ui` with `gitea.py pr`, and report the link. The PR title must be a valid Conventional Commit (it becomes the squash commit; Gitea appends `(#N)`). The body follows `.gitea/PULL_REQUEST_TEMPLATE.md` and ends with `Resolves #N`. Copy the issue's label. Then stop; the owner merges.
+
+Never: merge a PR, close an issue by hand, push to `tp-ui` or `main`, force-push, rewrite pushed history, or commit secrets or media. Ask before: adding a dependency, changing a settings or API shape, deleting a feature, or touching anything outside the issue's scope.

@@ -1,0 +1,14 @@
+{
+  "media_root": "/data/media",
+  "watch_interval_minutes": "0",
+  "arr_connections": [
+    {"id": "radarr-main", "name": "Radarr Main", "type": "radarr", "url": "http://mock-radarr:7878", "api_key": "devkey"},
+    {"id": "radarr-4k",   "name": "Radarr 4K",   "type": "radarr", "url": "http://mock-radarr-4k:7878", "api_key": "devkey"},
+    {"id": "sonarr-main", "name": "Sonarr TV",   "type": "sonarr", "url": "http://mock-sonarr:8989", "api_key": "devkey"}
+  ],
+  "libraries": [
+    {"id": "movies",    "name": "Movies",    "connection_id": "radarr-main", "root_path": ""},
+    {"id": "movies-4k", "name": "Movies 4K", "connection_id": "radarr-4k",   "root_path": ""},
+    {"id": "tv-shows",  "name": "TV Shows",  "connection_id": "sonarr-main", "root_path": ""}
+  ]
+}

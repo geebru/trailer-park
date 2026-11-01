@@ -1,175 +1,319 @@
 # Trailarr Parrk
 
-Downloads trailers for movies and TV shows via TMDB and yt-dlp. Triggered automatically by Radarr on import/upgrade and Sonarr on series add, or run manually from the container console. Primarily useful for Jellyfin, which has no native trailer support.
+Downloads local trailers for Radarr and Sonarr titles using TMDB + yt-dlp.
+
+Current release: **v0.8.0**
+
+v0.8.0 replaces the web interface: one app with Overview, Trailers, Settings and Activity, live download logs, and a JSON API. Libraries are gone; every Radarr/Sonarr connection is simply listed under Movies or Shows. See the [changelog](CHANGELOG.md) for upgrade notes. v0.7.0 detects existing trailers under any name or folder, so Missing only lists titles with no trailer at all, and adds rename/keep/replace actions for them. v0.6.4 added an optional YouTube search fallback for titles TMDB has no working trailer for. v0.6.3 tries the next TMDB trailer when YouTube says a video is unavailable, falls back to season trailers for shows with no show-level trailer (first season by default, configurable), and ranks later-season trailers behind spoiler-free ones. v0.6.2 added a Radarr/Sonarr API watcher (no webhook needed), fixes webhooks reporting trailers as downloaded for newly added films, and finds original-language trailers for anime and other non-English titles. v0.6.1 added safe batch cancellation, automatic daily yt-dlp update checks, clearer configured-state handling and fixes trailer finalization for paths containing characters such as `[tmdbid-123456]`.
 
 ---
 
-## Requirements
+## Main features
 
-- Linuxserver.io Radarr and/or Sonarr
-- A free [TMDB read access token](https://www.themoviedb.org/settings/api) — the long v4 JWT, not the short v3 API key
+- Multiple Radarr and Sonarr connections, merged into **Movies** and **Shows**
+- Trailers page with search, filters (connection, folder, Missing, Available, Name mismatch, Multiple found) and paging
+- **Grab**, **Replace**, **Manual** (YouTube link or ID), per-file **Rename / Keep only this / Delete**
+- **Rename N** and **Grab N missing** for the current view
+- Live download log with progress and Cancel; closing it never stops the download
+- Overview with totals, coverage and recent Activity
+- Settings for connections, naming, scoring, TMDB, downloads (resolution, mkv/mp4, concurrency), yt-dlp, sync schedule and notifications
+- Automatic grabs from a watcher (no webhooks), plus **Sync now**
+- Persistent Activity log with retention
+- Discord notifications (per-event toggles; batches send one summary)
+- In-app yt-dlp update with checksum verification and a persistent `/config` override
+- Cross-process download limiting (1-4), safe batch cancellation
+- Manual CLI
+- JSON API under `/api` (see `SPEC.md`)
 
 ---
 
-## Files
+## Docker Compose
 
-| File | Purpose |
-|---|---|
-| `trailarr-parrk.sh` | Main script — config block is at the top, edit this file |
-| `99-install_dependencies.sh` | Container init script, installs `ffmpeg`, `jq`, `curl`, and `yt-dlp` on startup |
-
-One set of files per Arr instance.
-
----
-
-## Setup
-
-### 1. Create directories
-
-```bash
-mkdir -p /path/to/appdata/{radarr,sonarr}/{cont-init.d,scripts}
-```
-
-### 2. Install dependencies
-
-Copy `99-install_dependencies.sh` into each `cont-init.d` folder and mount it in your Docker Compose:
-
-Radarr:
 ```yaml
-- /path/to/appdata/radarr/cont-init.d:/etc/cont-init.d
+services:
+  trailarr-parrk:
+    build: .
+    container_name: trailarr-parrk
+
+    networks:
+      - media-network
+
+    volumes:
+      - /path/to/media:/data/media
+      - ./config:/config
+
+    # Optional: run as a specific host UID:GID.
+    # 1000 = user ID, 1000 = group ID.
+    # Check the correct values on your host with: id
+    # user: "1000:1000"
+
+    ports:
+      - "8080:8080"
+
+    restart: unless-stopped
+
+networks:
+  media-network:
+    external: true
 ```
-Sonarr:
-```yaml
-- /path/to/appdata/sonarr/cont-init.d:/etc/cont-init.d
+
+### User mapping
+
+`user:` uses Docker's `UID:GID` format:
+
+```text
+user: "1000:1000"
+       │    │
+       │    └─ group ID (GID)
+       └────── user ID (UID)
 ```
 
-Restart each container. Dependencies will be installed automatically on every start.
+Do **not** assume `1000:1000` is correct for every server. The selected user must be able to:
 
-### 3. Configure
+- read/write the mapped media directories used for trailers
+- read/write the `/config` volume
 
-Copy `trailarr-parrk.sh` into each scripts directory:
-```
-/path/to/appdata/radarr/scripts/
-/path/to/appdata/sonarr/scripts/
-```
+On Unraid, `99:100` (`nobody:users`) is a common mapping, but use the IDs that match your own share/permission setup.
 
-Edit the config block near the top of `trailarr-parrk.sh` and add your TMDB read access token.
+---
 
-### 4. Set permissions
+## Start / upgrade
+
+First install:
 
 ```bash
-chmod +x trailarr-parrk.sh
-chown PUID:PGID trailarr-parrk.sh
+git clone https://YOUR-GIT-HOST/OWNER/trailarr-parrk.git
+cd trailarr-parrk
+docker compose up -d --build
 ```
 
-Replace `PUID:PGID` with the values set in your container environment.
-
-### 5. Connect to Radarr and Sonarr
-
-**Settings → Connect → Custom Script → Add New**
-
-| App | Script path | Events |
-|---|---|---|
-| Radarr | `/config/scripts/trailarr-parrk.sh` | On Import, On Upgrade |
-| Sonarr | `/config/scripts/trailarr-parrk.sh` | On Series Add |
-
-For Sonarr's **On Series Add** to work, enable **Create Empty Series Folders** in Settings → Media Management. This fires once when a show is added — not per episode.
-
-Use the **Test** button to confirm the script is found and executable.
-
----
-
-## Configuration Reference
-
-All options live in the config block at the top of `trailarr-parrk.sh`.
-
-| Option | Default | Description |
-|---|---|---|
-| `TMDB_API_KEY` _(required)_ | _(empty)_ | TMDB v4 read access token |
-| `PREFERRED_TERMS` | `"official,trailer,teaser,theatrical"` | Comma-separated. Each match adds +10 to the trailer's score. Trailers scoring 0 are skipped. Case-insensitive. |
-| `EXCLUDED_TERMS` | `"fan made,fan-made,reaction,parody,review,recut,behind the scenes,featurette"` | Comma-separated. Any match disqualifies a trailer entirely. Case-insensitive. |
-| `TRAILER_FOLDER` | `"trailers"` | Subfolder inside the media folder. Leave empty `""` to save directly into the media folder. |
-| `FILENAME_TEMPLATE` | `"{title} ({year}).trailer"` | Output filename without extension. Supports `{title}` and `{year}` tokens. |
-| `VIDEO_QUALITY` | `"1080"` | Max download height passed to yt-dlp. |
-| `DISCORD_WEBHOOK_URL` | _(empty)_ | Webhook URL for download and failure notifications. Leave empty to disable. |
-
----
-
-## Trailer Selection
-
-The script fetches all videos linked to a title on TMDB, filters by site (YouTube) and type (Trailer), then scores each candidate:
-
-| Points | Condition |
-|---|---|
-| +10 | Each `PREFERRED_TERMS` match in the trailer name |
-
-Trailers are excluded entirely if their name contains any `EXCLUDED_TERMS`. Trailers with a score of 0 (no preferred term matches) are also skipped. The highest scoring trailer wins.
-
----
-
-## Manual Usage
-
-Run from inside the Radarr or Sonarr container console.
-
-**Simulate an automatic run** by setting the same environment variables Radarr/Sonarr would pass:
+Upgrade an existing install:
 
 ```bash
-# Dry run — scores and lists candidates without downloading
-radarr_eventtype="Download" radarr_movie_title="Dune" \
-  radarr_movie_year="2021" radarr_movie_path="/movies/Dune (2021)" \
-  radarr_movie_tmdbid="438631" sh /config/scripts/trailarr-parrk.sh --dry-run
-
-# Normal run
-radarr_eventtype="Download" radarr_movie_title="Dune" \
-  radarr_movie_year="2021" radarr_movie_path="/movies/Dune (2021)" \
-  radarr_movie_tmdbid="438631" sh /config/scripts/trailarr-parrk.sh
+cd trailarr-parrk
+git pull
+docker compose up -d --build
 ```
 
-**Force-download a specific YouTube video** (bypasses TMDB and scoring entirely):
+Open:
+
+```text
+http://SERVER-IP:8080
+```
+
+Upgrading from v0.7.x: keep the same `/config` volume. Your connections and settings carry over. The old `libraries` list in `settings.json` is no longer used (it stays in the file, ignored). Old bookmarks such as `/library/movies` redirect to `/trailers`.
+
+When upgrading from v0.5.x, keep the same `/config` volume. v0.6.0 reads the old Radarr/Sonarr settings and exposes them as default `Radarr`, `Sonarr`, `Movies` and `TV Shows` entries.
+
+Before a major upgrade, backing up `config/settings.json` is still sensible.
+
+---
+
+## Settings
+
+### TMDB
+
+Add the TMDB Read Access Token and press **Test**.
+
+A successful test saves the token. A failed test leaves the existing saved token untouched.
+
+### Arr connections
+
+Add any number of Radarr and Sonarr connections under **Settings → Connections** (**Test and save** checks the URL and key first). Radarr connections feed **Movies**, Sonarr connections feed **Shows**. Each title is shown once, under the connection it belongs to, and the Trailers page can filter by connection or media folder.
+
+Default URLs for new standard installs are:
+
+```text
+Radarr: http://radarr:7878
+Sonarr: http://sonarr:8989
+```
+
+**Automatic grabs** come from the watcher, which polls each connection's API (Settings → Automation, default every 5 minutes; Off turns automatic grabs off). **Sync now** runs one check immediately. Radarr grabs on import and upgrade; Sonarr grabs when a series is added, waiting for its folder if Sonarr hasn't created it yet. The first check only records a baseline — use Grab all missing for older titles.
+
+Arr webhooks are no longer used. If you had a webhook pointing at `/hook` in Radarr or Sonarr, remove it under **Settings → Connect**; it now returns 404.
+
+Existing trailers are kept on upgrades and later episode imports.
+
+### Media
+
+`MEDIA_ROOT` must exist inside the container and be readable. This catches path typos instead of silently showing an empty library.
+
+### Downloads
+
+Resolution (480p, 720p, 1080p, 4K), output container (mkv or mp4) and concurrent downloads (1-4) are under **Settings → Downloads**. Changes apply to new downloads. mp4 prefers H.264 video so the files play on more devices.
+
+The concurrency limit applies across Web UI grabs, batches, the watcher and the CLI. Waitress still runs 4 HTTP worker threads so the UI stays responsive during a download.
+
+---
+
+## Trailers page
+
+Movies and Shows tabs list every title. Filters: connection, media folder, and **All titles / Available / Missing / Name mismatch / Multiple found**. The filters and page are in the address, so you can bookmark a view (for example `/trailers?status=missing`).
+
+### What counts as a trailer
+
+A title has a trailer when its media folder contains **any** trailer file, whatever it's called:
+
+- any video file (`.mkv`, `.mp4`, `.m4v`, `.avi`, `.mov`, `.webm`) inside a `trailers` or `trailer` subfolder (any capitalisation) or your configured trailer folder
+- a video file in the media folder itself whose name ends in `trailer` — `-trailer.mkv`, `.trailer.mkv`, `Title trailer.mp4`, `trailer.mkv` (files over 2 GB are ignored there, so a main movie file is never mistaken for a trailer)
+
+Changing the folder or filename settings never moves titles between Missing and Existing.
+
+### Missing
+
+Titles with no trailer file at all. Radarr movies appear once the movie file exists; Sonarr series once their series folder exists.
+
+- **Grab**: let TMDB choose the best trailer
+- **Manual**: use a specific YouTube link or ID
+- **Grab N missing** (top right): grabs every missing title in the current tab and connection filter, one after another, after a confirmation. Progress and **Cancel batch** are in the sidebar.
+
+### Available
+
+Titles that have a trailer. Each is marked **Name mismatch** (a trailer exists under another name or folder) and/or **Multiple found** (several trailer files).
+
+- **Replace**: download a new trailer. Old files are removed **only if the download succeeds**.
+- **Manual**: replace with a specific YouTube link or ID
+- **Files**: per-file **Rename** (to the current naming, keeps the extension, never overwrites), **Keep only this** (delete the others), **Delete**
+- **Rename N** (top right): rename every flagged single-file title in the current tab and connection. A dry run shows what is ready or blocked first. Titles with several files are skipped.
+
+Trailarr stores metadata for trailers it downloads (TMDB video name, YouTube ID, score, timestamp, source). Renames keep that metadata. Trailers it didn't download show as **Found on disk**.
+
+---
+
+## Trailer scoring
+
+Baseline preferred terms remain:
+
+```text
+official,trailer,teaser,theatrical
+```
+
+Trailer scoring:
+
+```text
+official   +10
+trailer    +10
+theatrical +10
+teaser      +5
+```
+
+TMDB's actual `Trailer` / `Teaser` type and `official` flag are used for the baseline terms as well as the video name.
+
+Typical result:
+
+```text
+Official Trailer = +20
+Official Teaser  = +15
+```
+
+Excluded terms still reject a candidate completely.
+
+---
+
+## Activity
+
+The **Activity** page stores recent actions in `/config/activity.jsonl`.
+
+It can show:
+
+- successful downloads
+- no-match warnings
+- failed yt-dlp downloads
+- forced downloads
+- deletes
+- yt-dlp updates
+- connection
+- selected trailer name
+- YouTube ID
+- score
+- excluded candidates
+- download duration
+
+Old entries are removed automatically after the retention period (Settings → Automation; 60, 90, 180 or 365 days, or forever).
+
+---
+
+## yt-dlp management
+
+**Settings → Downloads** shows:
+
+```text
+Active version
+Bundled Docker-image version
+Latest version (after Check)
+```
+
+**Check for update** queries the official yt-dlp GitHub release.
+
+**Update yt-dlp** downloads the official `yt-dlp` release file, verifies it against the release `SHA2-256SUMS`, then stores it at:
+
+```text
+/config/bin/yt-dlp
+```
+
+Trailarr uses that persistent copy immediately and after container recreation. The yt-dlp version bundled in the Docker image remains the fallback.
+
+Trailarr automatically checks for a newer yt-dlp release once every 24 hours and records the last successful check in `/config/ytdlp-status.json`. It does **not** install updates automatically; use **Update yt-dlp** when you want to activate a new release.
+
+A future full image rebuild can still update the bundled fallback version.
+
+---
+
+## Batches
+
+**Grab N missing** on the Trailers page starts a batch for the current tab and connection filter. Only one batch runs at a time. Each title is a normal download, so you can open any running one from the sidebar to see its log. **Cancel batch** in the sidebar stops further titles from starting; downloads already running finish safely. When a batch ends, one summary (not one message per title) goes to Discord if notifications are on, and the batch is recorded in Activity.
+
+---
+
+## Manual CLI
+
+The CLI still works as a separate short-lived process inside the running container:
 
 ```bash
-# Download to current directory
-/config/scripts/trailarr-parrk.sh --yt-id dUKFnBqlVSI --title "Parasite" --year 2019
-
-# Download to a specific path, dry run first
-/config/scripts/trailarr-parrk.sh --yt-id dUKFnBqlVSI --title "Parasite" --year 2019 \
-  --output "/data/movies/Parasite (2019)" --dry-run
+docker exec trailarr-parrk python /app/app.py \
+  --yt-id dUKFnBqlVSI \
+  --title "Parasite" \
+  --year 2019 \
+  --output "/data/media/movies/Parasite (2019)" \
+  --dry-run
 ```
 
-### Flags
+Or use TMDB:
 
-| Flag | Description |
-|---|---|
-| `--yt-id <id>` | Download a specific YouTube video, bypasses TMDB and scoring |
-| `--title "Title"` | Title used for the output filename (required with `--yt-id`) |
-| `--year <year>` | Year used for the output filename (required with `--yt-id`) |
-| `--output <path>` | Output directory (optional, defaults to current directory) |
-| `--dry-run` | Log actions without downloading |
+```bash
+docker exec trailarr-parrk python /app/app.py \
+  --tmdb-id 496243 \
+  --type movie \
+  --title "Parasite" \
+  --year 2019 \
+  --output "/data/media/movies/Parasite (2019)" \
+  --dry-run
+```
 
-When triggered automatically by Radarr or Sonarr, no flags are needed — the script reads the event environment variables directly.
-
----
-
-## Discord Notifications
-
-Set `DISCORD_WEBHOOK_URL` in the script config to receive notifications on:
-
-- Trailer downloaded (includes YouTube URL and score)
-- No valid trailers found (all excluded or scored 0)
-- Download failed
-
-To create a webhook: **Discord Server Settings → Integrations → Webhooks → New Webhook**.
+The CLI loads `/config/settings.json` independently of the running Flask process, but the v0.6.0 file-lock download limiter is shared across processes.
 
 ---
 
-## Troubleshooting
+## Persistent files
 
-**Script not triggering** — Check that the file is executable (`chmod +x`) and ownership matches the container's `PUID:PGID`.
+The `/config` volume now contains runtime state such as:
 
-**`yt-dlp`, `ffmpeg`, or `jq` not found** — Confirm `99-install_dependencies.sh` is in `cont-init.d` and the volume mount is correct. Restart the container and check startup logs.
+```text
+/config/settings.json
+/config/activity.jsonl
+/config/trailers.json
+/config/bin/yt-dlp        # only after an in-app yt-dlp update
+/config/download-slots/   # lock files used for concurrency control
+```
 
-**Wrong trailer selected** — Simulate a run with `--dry-run` (via env vars) to see scored candidates. Adjust `PREFERRED_TERMS` and `EXCLUDED_TERMS` in the script config.
+Do not commit this directory to a public repository.
 
-**Private or unavailable video** — The YouTube video linked on TMDB is unavailable. Use `--yt-id` with a working public video ID.
+---
 
-**API errors** — Confirm `TMDB_API_KEY` is set to the v4 read access token (the long JWT string from your TMDB API settings page), not the short v3 key.
+## Security
+
+Trailarr Parrk does not provide its own authentication.
+
+Keep the UI on a trusted network or protect it with authentication before exposing it outside your LAN.
+
+The config directory contains API keys and the Discord webhook URL and is ignored by the supplied `.gitignore`.

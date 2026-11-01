@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(python scripts/gitea.py *)",
+      "Bash(python -m py_compile *)",
+      "Bash(python -m http.server 8090 *)",
+      "Bash(python dev/stack.py *)",
+      "Bash(python dev/smoke_api.py *)",
+      "Bash(docker ps*)",
+      "Bash(docker logs*)",
+      "Bash(docker compose -f docker-compose.dev.yml *)",
+      "Bash(curl -s*localhost*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git fetch*)",
+      "Bash(git switch*)",
+      "Bash(git rebase origin/tp-ui)",
+      "Bash(git branch --show-current)",
+      "Bash(git branch -m *)",
+      "Bash(git add*)",
+      "Bash(git commit -F *)",
+      "Bash(git push -u origin *)"
+    ],
+    "ask": [
+      "Bash(git push*tp-ui*)",
+      "Bash(git push*main*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean*)",
+      "Bash(git branch -D*)",
+      "Bash(git worktree remove*)",
+      "Bash(docker compose*down -v*)"
+    ],
+    "deny": [
+      "Bash(git push*--force*)",
+      "Bash(git push* -f *)",
+      "Bash(git push -f*)",
+      "Bash(git push izsez*)",
+      "Bash(git*--no-verify*)",
+      "Bash(git*--no-gpg-sign*)",
+      "PowerShell(git push*--force*)",
+      "PowerShell(git push* -f *)",
+      "PowerShell(git push izsez*)",
+      "PowerShell(git*--no-verify*)",
+      "PowerShell(git*--no-gpg-sign*)",
+      "Read(**/.env)",
+      "Read(**/dev/config/**)",
+      "Bash(cat*.env*)",
+      "Bash(type*.env*)"
+    ]
+  }
+}

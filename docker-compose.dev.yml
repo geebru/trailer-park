@@ -1,0 +1,64 @@
+# Local development stack: the app plus mock Radarr/Sonarr and a fake media library.
+# Nothing here touches real media or your real Arr instances.
+#
+#   docker compose -f docker-compose.dev.yml run --rm make-media     # (re)build the fake library
+#   docker compose -f docker-compose.dev.yml up --build              # start everything
+#   docker compose -f docker-compose.dev.yml restart trailarr-parrk  # after editing app.py / engine.py
+#
+# UI: http://localhost:8080      Set TMDB_API_KEY in your shell to make Grab work.
+# A second stack (another checkout or worktree) must not collide with the first; use
+#   python dev/stack.py up
+# which sets DEV_PORT, DEV_CONTAINER and a compose project name for you.
+# See dev/README.md for the full walkthrough.
+
+x-mock: &mock
+  image: python:3.12-alpine
+  volumes:
+    - ./dev:/devtools:ro
+    - ./dev/media:/data/media:ro
+  restart: unless-stopped
+
+services:
+  trailarr-parrk:
+    build: .
+    container_name: ${DEV_CONTAINER:-trailarr-parrk-dev}
+    ports:
+      - "${DEV_PORT:-8080}:8080"
+    environment:
+      TMDB_API_KEY: "${TMDB_API_KEY:-}"
+    volumes:
+      - ./dev/media:/data/media
+      - ./dev/config:/config
+      # Live source: edit on the host, then `restart trailarr-parrk`. No rebuild needed.
+      - ./engine.py:/app/engine.py:ro
+      - ./app.py:/app/app.py:ro
+      - ./api.py:/app/api.py:ro
+      - ./library_cache.py:/app/library_cache.py:ro
+      - ./jobs.py:/app/jobs.py:ro
+      - ./templates:/app/templates:ro
+      - ./static:/app/static:ro
+    depends_on:
+      - mock-radarr
+      - mock-radarr-4k
+      - mock-sonarr
+
+  mock-radarr:
+    <<: *mock
+    command: python /devtools/mock_arr.py --type radarr --key radarr_main --port 7878
+
+  mock-radarr-4k:
+    <<: *mock
+    command: python /devtools/mock_arr.py --type radarr --key radarr_4k --port 7878
+
+  mock-sonarr:
+    <<: *mock
+    command: python /devtools/mock_arr.py --type sonarr --key sonarr_main --port 8989
+
+  # One-shot tool, not started by `up`.
+  make-media:
+    profiles: ["tools"]
+    image: python:3.12-alpine
+    volumes:
+      - ./dev:/devtools:ro
+      - ./dev/media:/data/media
+    command: python /devtools/make_media.py --out /data/media --reset
