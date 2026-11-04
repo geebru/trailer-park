@@ -1,5 +1,28 @@
 # Trailer Park — Changelog
 
+## [0.9.0](https://github.com/geebru/trailer-park/compare/v0.8.0...v0.9.0) (2026-11-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* the example compose service and container are now named trailer-park (run docker compose down before pulling, so the old trailarr-parrk container does not keep port 8080). scripts/trailarr-parrk.sh is now scripts/trailer-park.sh, so repoint any Radarr or Sonarr custom script connection. Log lines now start with [trailer-park].
+
+### ✨ Features
+
+* publish Docker images when a release is created ([#30](https://github.com/geebru/trailer-park/issues/30)) ([d6c07d4](https://github.com/geebru/trailer-park/commit/d6c07d4577dd7cc0eeef3f164f0546c2b9d85c76))
+
+
+### 📝 Documentation
+
+* **agent:** say where breaking-change notes go and how to pick a type ([#29](https://github.com/geebru/trailer-park/issues/29)) ([e9dc14c](https://github.com/geebru/trailer-park/commit/e9dc14c2b078a1bee854834318ec83198bca88ab)), closes [#28](https://github.com/geebru/trailer-park/issues/28)
+* rewrite the README for the new interface and the image install ([#38](https://github.com/geebru/trailer-park/issues/38)) ([6de6e23](https://github.com/geebru/trailer-park/commit/6de6e2351f1a9c880239a5b901d573cb9b4d9f2a))
+
+
+### Other changes
+
+* **agent:** move the issue and PR workflow from Gitea to GitHub ([#23](https://github.com/geebru/trailer-park/issues/23)) ([c1e8f75](https://github.com/geebru/trailer-park/commit/c1e8f751e4bd9dfdeece87a90bb52430f534d87b))
+* rename Trailarr Parrk to Trailer Park ([#26](https://github.com/geebru/trailer-park/issues/26)) ([0e2cd07](https://github.com/geebru/trailer-park/commit/0e2cd07cd654ab4e7d3e1bacd40b263484264a71))
+
 ## v0.8.0 - New interface
 
 ### Changed

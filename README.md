@@ -2,7 +2,7 @@
 
 Downloads local trailers for your Radarr and Sonarr titles. It looks each title up on TMDB, picks the best trailer, downloads it from YouTube with yt-dlp, and saves it next to the media in a layout that Plex and Jellyfin pick up. Everything is managed from one web interface.
 
-Current release: **v0.8.0** <!-- x-release-please-version -->
+Current release: **v0.9.0** <!-- x-release-please-version -->
 
 [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
 
