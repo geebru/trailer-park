@@ -8,6 +8,7 @@ Flask + Waitress app that grabs trailers (TMDB + yt-dlp) for Radarr/Sonarr title
 - `jobs.py`: in-memory jobs and batches. `library_cache.py`: item snapshots, rescans in the background.
 - `templates/shell.html` + `static/ui/` is the whole front end. No build step.
 - `dev/`: mock Arrs, fake media, `docker-compose.dev.yml` (bind-mounts source; restart the container to pick up edits).
+- `Dockerfile` copies files one by one and `.dockerignore` is an allowlist: a new module or folder the app needs must be added to both, or the image will not have it. Flask and Waitress are pinned in `requirements.txt`; yt-dlp is deliberately not.
 
 ## Front end rules
 - Vanilla ES modules, `h()` element builder, client-side History router. No frameworks, no Tailwind, no CDN.
@@ -49,6 +50,8 @@ Flask + Waitress app that grabs trailers (TMDB + yt-dlp) for Radarr/Sonarr title
 - A breaking change (container name, script path, settings or API shape, a removed feature) puts `!` after the type, as in `feat!: ...`, and a `BREAKING CHANGE:` note. release-please reads the squash commit message, which is built from the commit messages or from the PR description depending on the repo's squash default, so put the note in both: in the footer of the commit that makes the change and in the PR description.
 - Write that note as a one-line headline of what changed, then what to do. It is printed under "BREAKING CHANGES" on its own, without the commit subject.
 - Config is in `release-please-config.json` and `.release-please-manifest.json`; the workflow is `.github/workflows/release-please.yml`.
+- When a release is created, that workflow scans the full history for secrets (`secrets-scan.yml`, TruffleHog) and then builds, smoke tests and pushes the multi-arch image to GHCR (`image.yml`), tagged `X.Y.Z`, `X.Y`, `latest`, and `X` from 1.0. The scan runs on every PR too, and `image.yml` runs on any PR that touches the image, so a failing check there is a real problem: fix it, do not skip it. Running either workflow by hand: "Secret scan" scans the whole history, "Docker image" pushes a throwaway `test` tag.
+- Every third-party Action is pinned to a full commit SHA with its version in a comment; Dependabot moves the pins. The TruffleHog `version` input is not moved by Dependabot: change it together with the action tag.
 
 ## Workflow
 Four skills drive it: `/triage` reports on the backlog (changes nothing until the owner approves); `/work-issue <N>` does the work and stops for review; `/preview` starts a local copy of the current branch for the owner to try by hand; `/ship` runs only after the owner approves. Point `/work-issue` at any issue; it asks first when the issue is vague or needs a decision.
