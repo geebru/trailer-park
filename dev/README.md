@@ -1,11 +1,11 @@
 # Local development
 
-A self-contained stack for testing Trailarr Parrk on Docker Desktop (Windows, macOS or Linux)
+A self-contained stack for testing Trailer Park on Docker Desktop (Windows, macOS or Linux)
 with **no real Radarr/Sonarr and no real media**.
 
 | Piece | What it is |
 |---|---|
-| `trailarr-parrk` | the app, built from this repo, on http://localhost:8080 |
+| `trailer-park` | the app, built from this repo, on http://localhost:8080 |
 | `mock-radarr`, `mock-radarr-4k`, `mock-sonarr` | tiny fake Arr APIs (`dev/mock_arr.py`), API key `devkey` |
 | `dev/media/` | fake library (`dev/make_media.py`): ~260 movies, 3 in a second "4K" Radarr, ~125 shows |
 | `dev/config/` | the app's settings, activity log and trailer metadata (git-ignored) |
@@ -56,10 +56,10 @@ Grabs need internet (TMDB, YouTube) and write only into `dev/media/`.
 
 ```powershell
 # after editing Python:
-docker compose -f docker-compose.dev.yml restart trailarr-parrk
+docker compose -f docker-compose.dev.yml restart trailer-park
 # templates and static files: refresh the browser after the restart.
 
-docker compose -f docker-compose.dev.yml logs -f trailarr-parrk     # app log
+docker compose -f docker-compose.dev.yml logs -f trailer-park     # app log
 ```
 
 Rebuild (`up --build`) only when the `Dockerfile` changes.
@@ -89,4 +89,4 @@ stack.
 
 ## Port already in use?
 
-`python dev/stack.py up` already picks a free port. For the by-hand commands, set `DEV_PORT`, e.g. `DEV_PORT=8081` (PowerShell: `$env:DEV_PORT = "8081"`) before `docker compose`. A second stack run by hand also needs a different `DEV_CONTAINER` (the default container name is `trailarr-parrk-dev`) and `-p <project>`.
+`python dev/stack.py up` already picks a free port. For the by-hand commands, set `DEV_PORT`, e.g. `DEV_PORT=8081` (PowerShell: `$env:DEV_PORT = "8081"`) before `docker compose`. A second stack run by hand also needs a different `DEV_CONTAINER` (the default container name is `trailer-park-dev`) and `-p <project>`.

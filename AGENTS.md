@@ -1,4 +1,4 @@
-# Trailarr Parrk: agent notes
+# Trailer Park: agent notes
 
 Flask + Waitress app that grabs trailers (TMDB + yt-dlp) for Radarr/Sonarr titles. Owner prefers simple, direct solutions. Remote is GitHub (`geebru/trailer-park`).
 

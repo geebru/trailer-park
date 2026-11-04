@@ -1,4 +1,4 @@
-# Trailarr Parrk
+# Trailer Park
 
 Downloads local trailers for Radarr and Sonarr titles using TMDB + yt-dlp.
 
@@ -31,9 +31,9 @@ v0.8.0 replaces the web interface: one app with Overview, Trailers, Settings and
 
 ```yaml
 services:
-  trailarr-parrk:
+  trailer-park:
     build: .
-    container_name: trailarr-parrk
+    container_name: trailer-park
 
     networks:
       - media-network
@@ -82,15 +82,15 @@ On Unraid, `99:100` (`nobody:users`) is a common mapping, but use the IDs that m
 First install:
 
 ```bash
-git clone https://YOUR-GIT-HOST/OWNER/trailarr-parrk.git
-cd trailarr-parrk
+git clone https://github.com/geebru/trailer-park.git
+cd trailer-park
 docker compose up -d --build
 ```
 
 Upgrade an existing install:
 
 ```bash
-cd trailarr-parrk
+cd trailer-park
 git pull
 docker compose up -d --build
 ```
@@ -100,6 +100,8 @@ Open:
 ```text
 http://SERVER-IP:8080
 ```
+
+Upgrading from Trailarr Parrk: the project was renamed Trailer Park. Your `/config` volume and settings are unchanged. The example compose file now names the service and container `trailer-park`. If you use the example as it is, run `docker compose down` **before** `git pull`, so the old `trailarr-parrk` container does not keep port 8080, then `docker compose up -d --build`. A compose file of your own can keep its old names. If you run the manual script from Radarr or Sonarr, point the connection at `scripts/trailer-park.sh` (it was `trailarr-parrk.sh`). Log lines are now prefixed `[trailer-park]`.
 
 Upgrading from v0.7.x: keep the same `/config` volume. Your connections and settings carry over. The old `libraries` list in `settings.json` is no longer used (it stays in the file, ignored). Old bookmarks such as `/library/movies` redirect to `/trailers`.
 
@@ -176,7 +178,7 @@ Titles that have a trailer. Each is marked **Name mismatch** (a trailer exists u
 - **Files**: per-file **Rename** (to the current naming, keeps the extension, never overwrites), **Keep only this** (delete the others), **Delete**
 - **Rename N** (top right): rename every flagged single-file title in the current tab and connection. A dry run shows what is ready or blocked first. Titles with several files are skipped.
 
-Trailarr stores metadata for trailers it downloads (TMDB video name, YouTube ID, score, timestamp, source). Renames keep that metadata. Trailers it didn't download show as **Found on disk**.
+Trailer Park stores metadata for trailers it downloads (TMDB video name, YouTube ID, score, timestamp, source). Renames keep that metadata. Trailers it didn't download show as **Found on disk**.
 
 ---
 
@@ -251,9 +253,9 @@ Latest version (after Check)
 /config/bin/yt-dlp
 ```
 
-Trailarr uses that persistent copy immediately and after container recreation. The yt-dlp version bundled in the Docker image remains the fallback.
+Trailer Park uses that persistent copy immediately and after container recreation. The yt-dlp version bundled in the Docker image remains the fallback.
 
-Trailarr automatically checks for a newer yt-dlp release once every 24 hours and records the last successful check in `/config/ytdlp-status.json`. It does **not** install updates automatically; use **Update yt-dlp** when you want to activate a new release.
+Trailer Park automatically checks for a newer yt-dlp release once every 24 hours and records the last successful check in `/config/ytdlp-status.json`. It does **not** install updates automatically; use **Update yt-dlp** when you want to activate a new release.
 
 A future full image rebuild can still update the bundled fallback version.
 
@@ -270,7 +272,7 @@ A future full image rebuild can still update the bundled fallback version.
 The CLI still works as a separate short-lived process inside the running container:
 
 ```bash
-docker exec trailarr-parrk python /app/app.py \
+docker exec trailer-park python /app/app.py \
   --yt-id dUKFnBqlVSI \
   --title "Parasite" \
   --year 2019 \
@@ -281,7 +283,7 @@ docker exec trailarr-parrk python /app/app.py \
 Or use TMDB:
 
 ```bash
-docker exec trailarr-parrk python /app/app.py \
+docker exec trailer-park python /app/app.py \
   --tmdb-id 496243 \
   --type movie \
   --title "Parasite" \
@@ -312,7 +314,7 @@ Do not commit this directory to a public repository.
 
 ## Security
 
-Trailarr Parrk does not provide its own authentication.
+Trailer Park does not provide its own authentication.
 
 Keep the UI on a trusted network or protect it with authentication before exposing it outside your LAN.
 
