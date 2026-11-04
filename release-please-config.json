@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "4aae6bb77c76525e1c7f49e0081206dcc420ea9b",
+  "release-type": "simple",
+  "include-component-in-tag": false,
+  "include-v-in-tag": true,
+  "bump-minor-pre-major": true,
+  "changelog-path": "CHANGELOG.md",
+  "extra-files": ["engine.py", "README.md"],
+  "packages": {
+    ".": {}
+  }
+}

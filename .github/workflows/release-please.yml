@@ -1,0 +1,28 @@
+name: Release
+
+# Keeps one open "release PR" that bumps the version and changelog from the Conventional Commit history on
+# main. Merging that PR tags vX.Y.Z and creates the GitHub Release. Config: release-please-config.json.
+#
+# Tags and PRs made with the default GITHUB_TOKEN do not trigger other workflows, so anything that must run
+# on a release (the image build, issue #22) has to be a job in this workflow, gated on the release output.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  release-please:
+    name: Release PR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

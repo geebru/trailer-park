@@ -274,19 +274,12 @@ No automated release workflow (GitHub Actions) is configured yet; images are bui
 ### End-to-end release checklist
 
 1. Merge the approved changes into the intended release branch and verify the working tree.
-2. Update the documented release version and add the user-facing changes to `CHANGELOG.md`.
+2. Review the open release PR that release-please keeps up to date. It bumps the version (`APP_VERSION` in `engine.py`, the README release line) and adds the new `CHANGELOG.md` section from the commit history. Edit its notes so upgrade instructions are included. Do not bump the version by hand.
 3. Build a fresh image and complete functional tests using test media and persistent `/config`.
 4. Test the supported platforms separately, especially if claiming `arm64` compatibility.
-5. Tag the source and image with the **same** version. For example, after reviewing the commit:
-
-   ```bash
-   git tag v0.7.1
-   # Push only when authorized and the correct remote/branch is confirmed:
-   git push origin v0.7.1
-   ```
-
+5. Merge the release PR. That creates the `vX.Y.Z` tag and the GitHub release. Tag the image with the **same** version.
 6. If you maintain published images, push the intended tags to your configured registry; update `latest` only when appropriate.
-7. Tag the release (`git tag v0.6.x && git push --tags`) and publish a GitHub release from that tag (Releases → Draft a new release), using the matching `CHANGELOG.md` section as the notes, including any deployment/upgrade instructions.
+7. Check that the GitHub release carries the matching `CHANGELOG.md` section, including any deployment/upgrade instructions.
 8. Recreate a test installation using the published image (or rebuilt source), check logs, confirm `/config` persistence, and verify media permissions.
 
 **Rollback:** Keep the previous known-good image tag and a backup of `/config`. To revert a registry-based deployment, change its image reference to the previous tag and recreate the container. For the supplied `build: .` Compose setup, restore the previous tested source revision before rebuilding. Restoring an older application version does not automatically reverse changes made to settings or media; test rollback compatibility and restore backups when necessary.
