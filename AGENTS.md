@@ -33,14 +33,23 @@ Flask + Waitress app that grabs trailers (TMDB + yt-dlp) for Radarr/Sonarr title
 
 ## Checking changes
 - Python: `python -m py_compile engine.py api.py app.py jobs.py library_cache.py`, then exercise endpoints with Flask's test client or the dev stack. `engine.py` imports `fcntl`, so it only runs in Docker/Linux, not natively on Windows.
-- Front end: load the page in the browser pane and check the console. Scan every page the change touches with the vendored axe-core at 1280 px and 390 px, following `dev/axe/README.md` (serve `dev/axe` on port 8090, paste `dev/axe/scan.js`). Do not download another copy. Any violation is yours to explain or fix.
-- Dev stack (from the checkout you are working in): `python dev/stack.py up` creates the settings and fake media if missing, picks a free port (8100 up) and a name unique to this checkout, and prints the URL. `status` shows it; `down` stops it when finished. Restart the app container after Python edits (`docker restart <name>`, name from `status`); refresh the browser after template/static edits. Details in `dev/README.md`.
-- The owner's own stack may be running on 8080. The script never touches it, and you must only ever stop or remove containers you started.
+- Front end: load the page in the browser pane and check the console. Scan every page the change touches with the vendored axe-core at 1280 px and 390 px, following `dev/axe/README.md` (serve `dev/axe` on port 8090, paste `dev/axe/scan.js`). Do not download another copy of axe-core or any other script without asking the owner. Any violation is yours to explain or fix.
+- Dev stack, from the checkout you are working in: `python dev/stack.py up|status|down` (creates settings and fake media if missing, picks a free port from 8100 and a name unique to this checkout; details in `dev/README.md`). Restart the app container after Python edits (`docker restart <name>`, name from `status`); refresh the browser after template/static edits. The owner's stack may run on 8080: only ever stop or remove containers you started.
 - Do not leave test fixtures in `dev/media`; reset with `dev/make_media.py --reset`.
+
+## Keep docs in step
+Before every commit, ask what the change makes wrong, and fix it in the same commit. Skipping this is how information is lost. The PR says which of these were updated, or why none:
+- Behavior, settings, UI, install or upgrade steps: `README.md`. `CHANGELOG.md` is generated: never edit it.
+- Layout, the rules in this file (API conventions, "Behavior to keep", workflow), permissions: this file, the skills in `.claude/skills/` that restate it, and `.claude/settings.json`.
+- Dev stack, mock Arrs, axe: `dev/README.md`, `dev/axe/README.md`.
+- Docker, CI, release: `CONTRIBUTING.md` (release checklist) and Releases below.
+- Issue and PR templates: `.github/`.
+
+Keep these files lean: each fact lives in one place, link instead of repeating, and delete what a change makes obsolete instead of adding a note beside it. They must not grow with every change.
 
 ## GitHub
 - The `gh` CLI reads and writes issues and PRs. The owner logs in with `gh auth login`; never ask for, print, read back or commit a token. Never read `dev/config`.
-- Issue and PR titles use the Conventional Commit form `type(scope): subject` (types and scopes under Work phase). The "Title format" workflow checks it, fails a PR with a bad title, and sets the type label from the title: `feat` is `enhancement`, `fix` is `bug`, `docs` is `documentation`, anything else is `chore`. Do not set those labels by hand. `question` is a manual label for an issue whose deliverable is an answer, not code.
+- Issue and PR titles use the Conventional Commit form `type(scope): subject` (types and scopes under Workflow). The "Title format" workflow checks it, fails a PR with a bad title, and sets the type label from the title: `feat` is `enhancement`, `fix` is `bug`, `docs` is `documentation`, anything else is `chore`. Do not set those labels by hand. `question` is a manual label for an issue whose deliverable is an answer, not code.
 - There are no status labels. Whether an issue is ready, needs a decision or needs information lives in the conversation on the issue; `/triage` reports it and asks before posting anything.
 - `main` is the only long-lived branch. Branch from it and open PRs against it. The owner protects it in the repo settings: a PR is required, squash merge only, the "Title format" check must pass, no force pushes, no deletion. The owner squash-merges on GitHub. Push to `origin` only (never `izsez` or `gitea`).
 
@@ -52,24 +61,24 @@ Flask + Waitress app that grabs trailers (TMDB + yt-dlp) for Radarr/Sonarr title
 - Every third-party Action is pinned to a commit SHA with its version in a comment. Dependabot moves the pins but not the TruffleHog `version` input: change it with the action tag.
 
 ## Workflow
-Four skills drive it: `/triage` reports on the backlog (changes nothing until the owner approves); `/work-issue <N>` does the work and stops for review; `/preview` starts a local copy of the current branch for the owner to try by hand; `/ship` runs only after the owner approves. Point `/work-issue` at any issue; it asks first when the issue is vague or needs a decision.
+The skills in `.claude/skills/` hold the steps; this file holds the rules they rely on.
+- `/triage` reports on the backlog and changes nothing until the owner approves.
+- `/work-issue <N>` reads the issue, works in a worktree on `<type>/<issue>-<slug>` cut from a fresh `origin/main` (e.g. `fix/31-tooltip-z-index`), verifies, commits, then stops with a review package: what was wrong and why, files and commits, before/after evidence, checks run, risks, what could not be verified. It never pushes, and asks first when the issue is vague or needs a decision.
+- `/preview` starts a local copy of the branch for the owner to try.
+- `/ship`, only after the owner approves, pushes to `origin` and opens the PR against `main`: the title is a valid Conventional Commit under 72 characters (it becomes the squash commit; GitHub appends `(#N)`), the body follows `.github/PULL_REQUEST_TEMPLATE.md` and ends with `Resolves #N`, and the workflow sets the label. Then it stops; the owner merges.
 
-**Work phase (`/work-issue`)**
-1. Read the issue and its comments (`gh issue view N --comments`). Work in an isolated worktree on branch `<type>/<issue>-<slug>` cut from a fresh `origin/main`, e.g. `fix/31-tooltip-z-index`.
-2. By type (the title's prefix):
-   - `fix`: reproduce first (dev stack, browser at 1280 px and 390 px) and keep before-evidence. Find the root cause, make the smallest fix, confirm the repro is gone, check neighbouring behavior. If you cannot reproduce it, say what you tried instead of guessing.
-   - `feat`: restate the acceptance criteria in two or three lines. If it changes the API contract, anything under "Behavior to keep", or needs a design call (new page, new setting), stop and ask before building. Follow the front end and API rules, run axe, update README/CHANGELOG when user-visible.
-   - `docs`, `chore`, `refactor`, `ci` and the rest: no behavior change; keep the diff small.
-   - Label `question`: draft the answer for the owner. No code.
-3. Verify with the checks above that fit the change. If something still fails after two honest attempts, stop and report.
-4. Commit on the branch, no need to ask. Conventional Commits, `type(scope): subject`:
-   - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`, and `agent` (agent files only; see Releases).
-   - Scope is the area, lowercase (`nav`, `sidebar`, `services`, `activity`, `jobs`, `settings`, `trailers`, `api`, `engine`). Omit it for repo-wide changes.
-   - Subject is imperative, lowercase, no period, under 72 characters. The body says why. Footer `Resolves #N` (finishes the issue) or `Refs #N` (part of it).
-   - One logical change per commit; no unrelated edits or formatting churn.
-   - Commits are GPG-signed. If signing fails or waits on a passphrase, stop and tell the owner. Never use `--no-verify` or `--no-gpg-sign`.
-5. **Stop and hand over a review package**: what was wrong and why, what changed (files and commit list), before/after evidence, checks run and results, risks, and what you could not verify. Do not push.
+By type (the title's prefix):
+- `fix`: reproduce first (dev stack, browser at 1280 px and 390 px) and keep before-evidence. Find the root cause, make the smallest fix, confirm the repro is gone, check neighbouring behavior. If you cannot reproduce it, say what you tried instead of guessing.
+- `feat`: restate the acceptance criteria in two or three lines. If it changes the API contract, anything under "Behavior to keep", or needs a design call (new page, new setting), stop and ask before building. Follow the front end and API rules and run axe.
+- `docs`, `chore`, `refactor`, `ci`, `agent` and the rest: no behavior change; keep the diff small.
+- Label `question`: draft the answer for the owner. No code.
+- After two honest failed attempts at a fix, stop and report.
 
-**Ship phase (`/ship`)**, only after the owner says the work is approved: push the branch to `origin`, open a PR against `main` with `gh pr create`, and report the link. The PR title must be a valid Conventional Commit under 72 characters (it becomes the squash commit; GitHub appends `(#N)`). The body follows `.github/PULL_REQUEST_TEMPLATE.md` and ends with `Resolves #N`. The workflow labels the PR, so do not set a label. Then stop; the owner merges.
+Commits (no need to ask), Conventional Commits `type(scope): subject`:
+- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`, and `agent` (agent files only; see Releases).
+- Scope is the area, lowercase (`nav`, `sidebar`, `services`, `activity`, `jobs`, `settings`, `trailers`, `api`, `engine`). Omit it for repo-wide changes.
+- Subject is imperative, lowercase, no period, under 72 characters. The body says why. Footer `Resolves #N` (finishes the issue) or `Refs #N` (part of it).
+- One logical change per commit; no unrelated edits or formatting churn.
+- Commits are GPG-signed. If signing fails or waits on a passphrase, stop and tell the owner. Never use `--no-verify` or `--no-gpg-sign`.
 
 Never: merge a PR (`gh pr merge`), close an issue by hand, push to `main`, force-push, rewrite pushed history, or commit secrets or media. Ask before: adding a dependency, changing a settings or API shape, deleting a feature, or touching anything outside the issue's scope.
