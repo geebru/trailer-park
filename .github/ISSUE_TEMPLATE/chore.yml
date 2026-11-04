@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Title format: `type(scope): subject`. Use `docs` for documentation, `ci` for workflows, `refactor` for restructuring, `chore` for the rest.
+        Title format: `type(scope): subject`. Use `docs` for documentation, `ci` for workflows, `agent` for agent files, `refactor` for restructuring, `chore` for the rest.
   - type: textarea
     id: why
     attributes:

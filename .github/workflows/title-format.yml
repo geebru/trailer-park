@@ -2,7 +2,7 @@ name: Title format
 
 # Issue and PR titles use the Conventional Commit form `type(scope): subject`, because the PR title
 # becomes the squash commit. The type also picks the label: feat -> enhancement, fix -> bug,
-# docs -> documentation, anything else -> chore.
+# docs -> documentation, anything else (including `agent`, for agent files) -> chore.
 #
 # pull_request_target gives a write token on PRs from forks. That is safe here because nothing from the
 # PR is checked out or run: the script only reads the title from the event payload.
@@ -26,7 +26,7 @@ jobs:
       - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
-            const TYPES = ["feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore", "revert"];
+            const TYPES = ["feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore", "revert", "agent"];
             const LABEL_FOR = { feat: "enhancement", fix: "bug", docs: "documentation" };
             const TYPE_LABELS = ["enhancement", "bug", "documentation", "chore"];
             const MARKER = "<!-- title-format -->";
