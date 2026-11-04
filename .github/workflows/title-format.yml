@@ -1,0 +1,81 @@
+name: Title format
+
+# Issue and PR titles use the Conventional Commit form `type(scope): subject`, because the PR title
+# becomes the squash commit. The type also picks the label: feat -> enhancement, fix -> bug,
+# docs -> documentation, anything else -> chore.
+#
+# pull_request_target gives a write token on PRs from forks. That is safe here because nothing from the
+# PR is checked out or run: the script only reads the title from the event payload.
+
+on:
+  pull_request_target:
+    types: [opened, edited, reopened]
+  issues:
+    types: [opened, edited, reopened]
+
+permissions: {}
+
+jobs:
+  title:
+    name: Title format
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const TYPES = ["feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore", "revert"];
+            const LABEL_FOR = { feat: "enhancement", fix: "bug", docs: "documentation" };
+            const TYPE_LABELS = ["enhancement", "bug", "documentation", "chore"];
+            const MARKER = "<!-- title-format -->";
+
+            const isPr = Boolean(context.payload.pull_request);
+            const item = context.payload.pull_request ?? context.payload.issue;
+            const { owner, repo } = context.repo;
+            const issue_number = item.number;
+            const title = item.title;
+
+            const match = title.match(new RegExp(`^(${TYPES.join("|")})(\\([a-z0-9-]+\\))?!?: (\\S.*)$`));
+            const problems = [];
+            if (!match) {
+              problems.push(`use \`type(scope): subject\` with a type from ${TYPES.join(", ")}; the scope is optional`);
+            } else {
+              if (/^[A-Z]/.test(match[3])) problems.push("start the subject in lowercase");
+              if (match[3].endsWith(".")) problems.push("leave off the trailing period");
+              if (isPr && title.length > 72) problems.push(`keep the PR title under 72 characters (it is ${title.length})`);
+            }
+
+            if (match) {
+              const want = LABEL_FOR[match[1]] ?? "chore";
+              try {
+                const current = (await github.paginate(github.rest.issues.listLabelsOnIssue, { owner, repo, issue_number })).map((l) => l.name);
+                for (const name of TYPE_LABELS) {
+                  if (name !== want && current.includes(name)) {
+                    await github.rest.issues.removeLabel({ owner, repo, issue_number, name });
+                  }
+                }
+                if (!current.includes(want)) {
+                  await github.rest.issues.addLabels({ owner, repo, issue_number, labels: [want] });
+                }
+              } catch (error) {
+                core.warning(`Could not update labels: ${error.message}`);
+              }
+            }
+
+            if (isPr) {
+              if (problems.length) core.setFailed(`PR title: ${problems.join("; ")}.`);
+            } else {
+              // An issue cannot fail a check, so ask once in a comment and remove it when the title is fixed.
+              const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+              const previous = comments.find((c) => c.body.includes(MARKER) && c.user.type === "Bot");
+              if (problems.length && !previous) {
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number,
+                  body: `${MARKER}\nThis title does not follow the Conventional Commit form: ${problems.join("; ")}. Edit the title and this comment goes away.`,
+                });
+              } else if (!problems.length && previous) {
+                await github.rest.issues.deleteComment({ owner, repo, comment_id: previous.id });
+              }
+            }
