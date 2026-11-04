@@ -43,6 +43,11 @@ Flask + Waitress app that grabs trailers (TMDB + yt-dlp) for Radarr/Sonarr title
 - There are no status labels. Whether an issue is ready, needs a decision or needs information lives in the conversation on the issue; `/triage` reports it and asks before posting anything.
 - `main` is the only long-lived branch. Branch from it and open PRs against it. The owner protects it in the repo settings: a PR is required, squash merge only (default message is the PR title and description), the "Title format" check must pass, no force pushes, no deletion. The owner squash-merges on GitHub. Push to `origin` only (never `izsez` or `gitea`).
 
+## Releases
+- release-please keeps one open release PR built from the commit history on `main`. Merging it (the owner only) tags `vX.Y.Z`, creates the GitHub Release and rewrites the version in `engine.py` (`APP_VERSION`) and the README release line. Both carry an `x-release-please-version` marker: keep it, and never edit those versions or add changelog sections for a release by hand.
+- The PR title decides the bump (before 1.0): `feat` is a minor bump, `fix` and `perf` a patch, and `docs`, `chore`, `ci`, `style`, `refactor`, `test` and `build` do not release. A breaking change (container name, script path, settings or API shape, a removed feature) puts `!` after the type, as in `feat!: ...`, and a `BREAKING CHANGE: <upgrade note>` line in the PR body.
+- Config is in `release-please-config.json` and `.release-please-manifest.json`; the workflow is `.github/workflows/release-please.yml`.
+
 ## Workflow
 Four skills drive it: `/triage` reports on the backlog (changes nothing until the owner approves); `/work-issue <N>` does the work and stops for review; `/preview` starts a local copy of the current branch for the owner to try by hand; `/ship` runs only after the owner approves. Point `/work-issue` at any issue; it asks first when the issue is vague or needs a decision.
 
