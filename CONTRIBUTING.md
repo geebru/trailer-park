@@ -253,14 +253,14 @@ Only use `--push` after authenticating, verifying registry permissions, and obta
 
 Publishing requires registry credentials and an authorized image namespace. Never commit registry tokens.
 
-The project's registry is the **Gitea container registry** on the project host. Images appear under the repository owner's *Packages* tab. Authenticate with a Gitea access token that has package write permission (Settings → Applications → Generate Token). Pass it through standard input, not on the command line:
+The project's registry is the **GitHub Container Registry** (`ghcr.io`). Images appear under the repository owner's *Packages* tab. Authenticate with a personal access token that has the `write:packages` scope (GitHub → Settings → Developer settings). Pass it through standard input, not on the command line:
 
 ```bash
-export IMAGE=YOUR-GIT-HOST/OWNER/trailarr-parrk
+export IMAGE=ghcr.io/OWNER/trailarr-parrk
 export VERSION=v0.7.0
 
-# Provide the token securely in your environment as GITEA_TOKEN.
-printf '%s' "$GITEA_TOKEN" | docker login YOUR-GIT-HOST -u OWNER --password-stdin
+# Provide the token securely in your environment as REGISTRY_TOKEN.
+printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u OWNER --password-stdin
 
 docker build --pull -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
 docker push "$IMAGE:$VERSION"
@@ -269,7 +269,7 @@ docker push "$IMAGE:latest"
 
 Only the maintainer publishes to this registry. Contributors who want to test a published image should push to their own namespace instead.
 
-No automated release workflow (Gitea Actions) is configured yet; images are built and pushed manually. For multi-platform publication, use the Buildx procedure above with your chosen image name; a conventional single-platform `docker push` does not produce a multi-platform manifest by itself.
+No automated release workflow (GitHub Actions) is configured yet; images are built and pushed manually. For multi-platform publication, use the Buildx procedure above with your chosen image name; a conventional single-platform `docker push` does not produce a multi-platform manifest by itself.
 
 ### End-to-end release checklist
 
@@ -286,14 +286,14 @@ No automated release workflow (Gitea Actions) is configured yet; images are buil
    ```
 
 6. If you maintain published images, push the intended tags to your configured registry; update `latest` only when appropriate.
-7. Tag the release (`git tag v0.6.x && git push --tags`) and publish a Gitea release from that tag (Releases → New Release), using the matching `CHANGELOG.md` section as the notes, including any deployment/upgrade instructions.
+7. Tag the release (`git tag v0.6.x && git push --tags`) and publish a GitHub release from that tag (Releases → Draft a new release), using the matching `CHANGELOG.md` section as the notes, including any deployment/upgrade instructions.
 8. Recreate a test installation using the published image (or rebuilt source), check logs, confirm `/config` persistence, and verify media permissions.
 
 **Rollback:** Keep the previous known-good image tag and a backup of `/config`. To revert a registry-based deployment, change its image reference to the previous tag and recreate the container. For the supplied `build: .` Compose setup, restore the previous tested source revision before rebuilding. Restoring an older application version does not automatically reverse changes made to settings or media; test rollback compatibility and restore backups when necessary.
 
 ## Pull requests
 
-Create a branch from your intended base branch and commit your changes with descriptive messages. A pull request should explain:
+Create a branch from `main` and commit your changes with [Conventional Commit](https://www.conventionalcommits.org/) messages. Issue and pull request titles use the same form, `type(scope): subject` (for example `fix(sidebar): stop the tooltip being clipped`), and a check on every PR enforces it because the title becomes the squash commit. A pull request should explain:
 
 - **What changed:** the behavior or defect addressed.
 - **Why:** the problem being solved, with an issue reference if available.
