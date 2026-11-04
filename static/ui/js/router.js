@@ -23,7 +23,7 @@ async function show(pathname, search, { focus }) {
   const query = new URLSearchParams(search);
   const cleanup = page.mount(outlet, { query, navigate });
   current = { route, cleanup };
-  document.title = `${page.title} · Trailarr Parrk`;
+  document.title = `${page.title} · Trailer Park`;
   onChange(route.name);
   if (focus) outlet.querySelector("h1")?.focus({ preventScroll: true });
   window.scrollTo(0, 0);

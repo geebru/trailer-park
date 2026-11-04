@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tiny stand-in for Radarr / Sonarr, for local development only.
 
-Serves the few /api/v3 endpoints Trailarr Parrk calls, from the catalog that
+Serves the few /api/v3 endpoints Trailer Park calls, from the catalog that
 make_media.py writes. Standard library only.
 
     python mock_arr.py --type radarr --key main --port 7878 [--api-key devkey] [--latency-ms 0]

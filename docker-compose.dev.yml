@@ -3,7 +3,7 @@
 #
 #   docker compose -f docker-compose.dev.yml run --rm make-media     # (re)build the fake library
 #   docker compose -f docker-compose.dev.yml up --build              # start everything
-#   docker compose -f docker-compose.dev.yml restart trailarr-parrk  # after editing app.py / engine.py
+#   docker compose -f docker-compose.dev.yml restart trailer-park  # after editing app.py / engine.py
 #
 # UI: http://localhost:8080      Set TMDB_API_KEY in your shell to make Grab work.
 # A second stack (another checkout or worktree) must not collide with the first; use
@@ -19,9 +19,9 @@ x-mock: &mock
   restart: unless-stopped
 
 services:
-  trailarr-parrk:
+  trailer-park:
     build: .
-    container_name: ${DEV_CONTAINER:-trailarr-parrk-dev}
+    container_name: ${DEV_CONTAINER:-trailer-park-dev}
     ports:
       - "${DEV_PORT:-8080}:8080"
     environment:
@@ -29,7 +29,7 @@ services:
     volumes:
       - ./dev/media:/data/media
       - ./dev/config:/config
-      # Live source: edit on the host, then `restart trailarr-parrk`. No rebuild needed.
+      # Live source: edit on the host, then `restart trailer-park`. No rebuild needed.
       - ./engine.py:/app/engine.py:ro
       - ./app.py:/app/app.py:ro
       - ./api.py:/app/api.py:ro

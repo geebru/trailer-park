@@ -1,6 +1,6 @@
-# Contributing to Trailarr Parrk
+# Contributing to Trailer Park
 
-Thank you for helping improve Trailarr Parrk. This project downloads and manages local trailers for Radarr and Sonarr libraries using TMDB and yt-dlp.
+Thank you for helping improve Trailer Park. This project downloads and manages local trailers for Radarr and Sonarr libraries using TMDB and yt-dlp.
 
 This guide applies to the v0.7.0 codebase. Please read the [README](README.md) and [CHANGELOG](CHANGELOG.md) before making changes.
 
@@ -33,8 +33,8 @@ Docker is the recommended way to reproduce the supported runtime.
 1. Clone the repository and enter its directory:
 
    ```bash
-   git clone https://YOUR-GIT-HOST/OWNER/trailarr-parrk.git
-   cd trailarr-parrk
+   git clone https://github.com/geebru/trailer-park.git
+   cd trailer-park
    ```
 
 2. Copy or adapt `docker-compose.yml` for your environment.
@@ -50,7 +50,7 @@ Docker is the recommended way to reproduce the supported runtime.
 7. Follow application logs while developing:
 
    ```bash
-   docker compose logs -f trailarr-parrk
+   docker compose logs -f trailer-park
    ```
 
 8. Rebuild after modifying application code or templates:
@@ -61,7 +61,7 @@ Docker is the recommended way to reproduce the supported runtime.
 
 The container uses Python 3.12, Flask, Waitress, yt-dlp, ffmpeg, and Deno. If you modify dependencies or the runtime, update the Dockerfile and document why.
 
-**Important:** Trailarr Parrk does not include built-in authentication. Do not expose a development instance directly to the public internet.
+**Important:** Trailer Park does not include built-in authentication. Do not expose a development instance directly to the public internet.
 
 ## Coding guidelines
 
@@ -157,7 +157,7 @@ To rebuild the application from local source and recreate its container:
 
 ```bash
 docker compose up -d --build
-docker compose logs --tail=100 trailarr-parrk
+docker compose logs --tail=100 trailer-park
 ```
 
 To fetch an updated base image and rebuild (including updated Alpine packages and Python dependencies available at build time):
@@ -165,7 +165,7 @@ To fetch an updated base image and rebuild (including updated Alpine packages an
 ```bash
 docker compose build --pull --no-cache
 docker compose up -d
-docker compose logs --tail=100 trailarr-parrk
+docker compose logs --tail=100 trailer-park
 ```
 
 **Important:** `--pull` and `--no-cache` do not guarantee reproducible or vulnerability-free builds. The current Dockerfile uses floating Alpine package and Python package versions, so rebuilding at different times can produce different dependency versions. For predictable releases, consider pinning dependencies (and testing any base-image digest or version changes) in a separate contribution.
@@ -187,7 +187,7 @@ There is **no Dockerfile generator** in v0.7.0. To create an alternative image d
 ```bash
 cp Dockerfile Dockerfile.dev
 # Edit Dockerfile.dev, then build it explicitly:
-docker build -f Dockerfile.dev -t trailarr-parrk:dev .
+docker build -f Dockerfile.dev -t trailer-park:dev .
 ```
 
 If you add Python requirements, system packages, entrypoint logic, or application files, update the corresponding `RUN`/`COPY` commands and test the result. Preserve the `/config` and `/data/media` mount conventions and port 8080 unless a breaking change is intentional and documented. Changing Alpine to Debian, switching Python versions, or replacing Deno needs a separate compatibility check; do not blindly substitute package-manager commands.
@@ -195,8 +195,8 @@ If you add Python requirements, system packages, entrypoint logic, or applicatio
 To build the normal production Dockerfile without Compose:
 
 ```bash
-docker build --pull -t trailarr-parrk:dev .
-docker image inspect trailarr-parrk:dev --format '{{.Id}}'
+docker build --pull -t trailer-park:dev .
+docker image inspect trailer-park:dev --format '{{.Id}}'
 ```
 
 ### Check the image before releasing it
@@ -207,7 +207,7 @@ At minimum, check syntax, run the service with safe test mounts, and inspect log
 python3 -m py_compile app.py
 docker compose up -d --build
 docker compose ps
-docker compose logs --tail=100 trailarr-parrk
+docker compose logs --tail=100 trailer-park
 ```
 
 Open `http://localhost:8080` (or the appropriate Docker-host address), verify that the UI loads, and exercise the affected workflows against **test** Radarr/Sonarr data and disposable media. Confirm persistence across a restart and test downloads, cancellation, path handling, and replacement/deletion when relevant. The v0.7.0 archive does not ship an automated test suite, so a successful build alone is not release validation.
@@ -217,8 +217,8 @@ Open `http://localhost:8080` (or the appropriate Docker-host address), verify th
 After making and testing release changes, select a new version (example: `v0.7.1`) and update `README.md` and `CHANGELOG.md` consistently. The commands below create local image tags; they do not publish anything:
 
 ```bash
-docker build --pull -t trailarr-parrk:v0.7.1 -t trailarr-parrk:latest .
-docker image ls trailarr-parrk
+docker build --pull -t trailer-park:v0.7.1 -t trailer-park:latest .
+docker image ls trailer-park
 ```
 
 The example version is illustrative, not an announcement that v0.7.1 exists. Use the actual approved release version and avoid moving `latest` unless the release is stable.
@@ -228,16 +228,16 @@ The example version is illustrative, not an announcement that v0.7.1 exists. Use
 Docker Buildx supports multi-platform builds. Install and configure Buildx and ensure your builder can execute both target architectures (for example, a compatible builder with QEMU emulation or native nodes). To create a builder if required:
 
 ```bash
-docker buildx create --name trailarr-builder --driver docker-container --use
+docker buildx create --name trailer-park-builder --driver docker-container --use
 docker buildx inspect --bootstrap
 ```
 
-If that builder already exists, select it with `docker buildx use trailarr-builder` instead. Verify the reported platforms before continuing. The dependencies in this image, especially the availability of `deno` in Alpine for the target platform, **must be confirmed with actual builds and runtime tests**; multi-architecture support is not established merely by specifying both platforms.
+If that builder already exists, select it with `docker buildx use trailer-park-builder` instead. Verify the reported platforms before continuing. The dependencies in this image, especially the availability of `deno` in Alpine for the target platform, **must be confirmed with actual builds and runtime tests**; multi-architecture support is not established merely by specifying both platforms.
 
 A multi-platform image is normally pushed directly to a registry rather than imported with `--load` into the classic Docker image store. The following is an **optional publishing example**—replace the registry path with one you control:
 
 ```bash
-export IMAGE=YOUR-GIT-HOST/OWNER/trailarr-parrk
+export IMAGE=YOUR-GIT-HOST/OWNER/trailer-park
 export VERSION=v0.7.0
 
 docker buildx build \
@@ -256,7 +256,7 @@ Publishing requires registry credentials and an authorized image namespace. Neve
 The project's registry is the **GitHub Container Registry** (`ghcr.io`). Images appear under the repository owner's *Packages* tab. Authenticate with a personal access token that has the `write:packages` scope (GitHub → Settings → Developer settings). Pass it through standard input, not on the command line:
 
 ```bash
-export IMAGE=ghcr.io/OWNER/trailarr-parrk
+export IMAGE=ghcr.io/OWNER/trailer-park
 export VERSION=v0.7.0
 
 # Provide the token securely in your environment as REGISTRY_TOKEN.
@@ -304,7 +304,7 @@ Screenshots are helpful for UI changes. Redact credentials, hostnames, and priva
 
 ## Reporting bugs and security issues
 
-Open bugs as issues in the project repository. For ordinary bugs, provide the Trailarr Parrk version, Docker environment, reproduction steps, expected behavior, actual behavior, and sanitized logs.
+Open bugs as issues in the project repository. For ordinary bugs, provide the Trailer Park version, Docker environment, reproduction steps, expected behavior, actual behavior, and sanitized logs.
 
 For vulnerabilities involving unauthenticated access, path traversal, arbitrary file modification, credential disclosure, or command execution, avoid posting exploit details or secrets in a public issue. Contact the repository maintainer privately through an available repository security-reporting channel instead. If no private channel is published, request one without disclosing the vulnerability details.
 

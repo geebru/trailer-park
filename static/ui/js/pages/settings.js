@@ -180,7 +180,7 @@ export function mount(container, { query, navigate }) {
   function removeConnection(c, rerender) {
     const d = createDialog({ title: `Remove ${c.name}?`, size: "sm", role: "alertdialog", tone: "danger" });
     const err = h("div", {});
-    d.body.append(h("p", { class: "hint hint--lead" }, "Trailarr Parrk will stop watching this connection. Your trailer files and the Arr itself are not touched."), err);
+    d.body.append(h("p", { class: "hint hint--lead" }, "Trailer Park will stop watching this connection. Your trailer files and the Arr itself are not touched."), err);
     d.footer.append(h("span", {}), h("div", { class: "dialog__actions" }, btn("btn--tertiary", "Cancel", d.close),
       btn("btn--danger-solid", "Remove", async () => {
         try {

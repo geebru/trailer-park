@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # =====================================================================
-# Trailarr Parrk — Dependency Installer
+# Trailer Park — Dependency Installer
 # Runs once at container startup to ensure all tools are available.
 # =====================================================================
 
-echo '[trailarr-parrk] Installing dependencies...\n'
+echo '[trailer-park] Installing dependencies...\n'
 
 # Install ffmpeg and jq via apk if not already present
 for _pkg in ffmpeg jq curl; do
@@ -15,4 +15,4 @@ done
 curl -sSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
     -o /usr/local/bin/yt-dlp && chmod a+rx /usr/local/bin/yt-dlp
 
-echo '[trailarr-parrk] yt-dlp %s ready.\n' "$(yt-dlp --version 2>/dev/null)"
+echo '[trailer-park] yt-dlp %s ready.\n' "$(yt-dlp --version 2>/dev/null)"

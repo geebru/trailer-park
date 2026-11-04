@@ -1,4 +1,4 @@
-# Trailarr Parrk — Changelog
+# Trailer Park — Changelog
 
 ## v0.8.0 - New interface
 

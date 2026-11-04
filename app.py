@@ -53,7 +53,7 @@ def health():
 # ── Manual CLI ────────────────────────────────────────────────────────────
 
 def cli():
-    parser = argparse.ArgumentParser(description="Trailarr Parrk manual trailer grabber")
+    parser = argparse.ArgumentParser(description="Trailer Park manual trailer grabber")
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--yt-id", help="Specific YouTube video ID")
     source.add_argument("--tmdb-id", type=int, help="TMDB movie or TV ID")
