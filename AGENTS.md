@@ -1,6 +1,6 @@
 # Trailarr Parrk: agent notes
 
-Flask + Waitress app that grabs trailers (TMDB + yt-dlp) for Radarr/Sonarr titles. Owner prefers simple, direct solutions. Remote is a private Gitea, not GitHub.
+Flask + Waitress app that grabs trailers (TMDB + yt-dlp) for Radarr/Sonarr titles. Owner prefers simple, direct solutions. Remote is GitHub (`geebru/trailer-park`).
 
 ## Layout
 - `engine.py`: all logic, no Flask. Nothing imports `app`.
@@ -37,22 +37,22 @@ Flask + Waitress app that grabs trailers (TMDB + yt-dlp) for Radarr/Sonarr title
 - The owner's own stack may be running on 8080. The script never touches it, and you must only ever stop or remove containers you started.
 - Do not leave test fixtures in `dev/media`; reset with `dev/make_media.py --reset`.
 
-## Gitea
-- `python scripts/gitea.py` reads and writes issues and PRs (`--help` lists commands). Reads are public; writes need `GITEA_TOKEN` in the main checkout's `.env` (copy `.env.example`); from a worktree the script finds it there, so never copy `.env` into a worktree. Never print, read back or commit the token. Never read `dev/config`.
-- Work is tracked as issues labelled `bug`, `enhancement`, `chore`, `documentation` or `question`.
-- Status labels, set by `/triage` after the owner agrees: `agent-ready` (clear enough for `/work-issue` to take without a conversation), `needs-info` (questions asked on the issue), `needs-design` (the owner decides first: API, "Behavior to keep", new page or setting). They sit next to the type label. `gitea.py labels`, `new-label` and `label N --add/--remove` manage them.
-- The integration branch is `tp-ui`. Branch from it and open PRs against it, not `main`. The owner squash-merges in the Gitea UI. Push to `origin` only (never `izsez`).
+## GitHub
+- The `gh` CLI reads and writes issues and PRs. The owner logs in with `gh auth login`; never ask for, print, read back or commit a token. Never read `dev/config`.
+- Issue and PR titles use the Conventional Commit form `type(scope): subject` (types and scopes under Work phase). The "Title format" workflow checks it, fails a PR with a bad title, and sets the type label from the title: `feat` is `enhancement`, `fix` is `bug`, `docs` is `documentation`, anything else is `chore`. Do not set those labels by hand. `question` is a manual label for an issue whose deliverable is an answer, not code.
+- There are no status labels. Whether an issue is ready, needs a decision or needs information lives in the conversation on the issue; `/triage` reports it and asks before posting anything.
+- `main` is the only long-lived branch. Branch from it and open PRs against it. The owner protects it in the repo settings: a PR is required, squash merge only (default message is the PR title and description), the "Title format" check must pass, no force pushes, no deletion. The owner squash-merges on GitHub. Push to `origin` only (never `izsez` or `gitea`).
 
 ## Workflow
-Four skills drive it: `/triage` sorts the backlog (changes nothing until the owner approves); `/work-issue <N>` does the work and stops for review; `/preview` starts a local copy of the current branch for the owner to try by hand; `/ship` runs only after the owner approves. Any `agent-ready` issue can be pointed at `/work-issue`.
+Four skills drive it: `/triage` reports on the backlog (changes nothing until the owner approves); `/work-issue <N>` does the work and stops for review; `/preview` starts a local copy of the current branch for the owner to try by hand; `/ship` runs only after the owner approves. Point `/work-issue` at any issue; it asks first when the issue is vague or needs a decision.
 
 **Work phase (`/work-issue`)**
-1. Read the issue and its comments (`gitea.py issue N`). Work in an isolated worktree on branch `<type>/<issue>-<slug>` cut from a fresh `origin/tp-ui`, e.g. `fix/31-tooltip-z-index`.
-2. By label:
-   - `bug`: reproduce first (dev stack, browser at 1280 px and 390 px) and keep before-evidence. Find the root cause, make the smallest fix, confirm the repro is gone, check neighbouring behavior. If you cannot reproduce it, say what you tried instead of guessing.
-   - `enhancement`: restate the acceptance criteria in two or three lines. If it changes the API contract, anything under "Behavior to keep", or needs a design call (new page, new setting), stop and ask before building. Follow the front end and API rules, run axe, update README/CHANGELOG when user-visible.
-   - `chore` / `documentation`: no behavior change; keep the diff small.
-   - `question`: draft the answer for the owner. No code.
+1. Read the issue and its comments (`gh issue view N --comments`). Work in an isolated worktree on branch `<type>/<issue>-<slug>` cut from a fresh `origin/main`, e.g. `fix/31-tooltip-z-index`.
+2. By type (the title's prefix):
+   - `fix`: reproduce first (dev stack, browser at 1280 px and 390 px) and keep before-evidence. Find the root cause, make the smallest fix, confirm the repro is gone, check neighbouring behavior. If you cannot reproduce it, say what you tried instead of guessing.
+   - `feat`: restate the acceptance criteria in two or three lines. If it changes the API contract, anything under "Behavior to keep", or needs a design call (new page, new setting), stop and ask before building. Follow the front end and API rules, run axe, update README/CHANGELOG when user-visible.
+   - `docs`, `chore`, `refactor`, `ci` and the rest: no behavior change; keep the diff small.
+   - Label `question`: draft the answer for the owner. No code.
 3. Verify with the checks above that fit the change. If something still fails after two honest attempts, stop and report.
 4. Commit on the branch, no need to ask. Conventional Commits, `type(scope): subject`:
    - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
@@ -62,6 +62,6 @@ Four skills drive it: `/triage` sorts the backlog (changes nothing until the own
    - Commits are GPG-signed. If signing fails or waits on a passphrase, stop and tell the owner. Never use `--no-verify` or `--no-gpg-sign`.
 5. **Stop and hand over a review package**: what was wrong and why, what changed (files and commit list), before/after evidence, checks run and results, risks, and what you could not verify. Do not push.
 
-**Ship phase (`/ship`)**, only after the owner says the work is approved: push the branch to `origin`, open a PR against `tp-ui` with `gitea.py pr`, and report the link. The PR title must be a valid Conventional Commit (it becomes the squash commit; Gitea appends `(#N)`). The body follows `.gitea/PULL_REQUEST_TEMPLATE.md` and ends with `Resolves #N`. Copy the issue's label. Then stop; the owner merges.
+**Ship phase (`/ship`)**, only after the owner says the work is approved: push the branch to `origin`, open a PR against `main` with `gh pr create`, and report the link. The PR title must be a valid Conventional Commit under 72 characters (it becomes the squash commit; GitHub appends `(#N)`). The body follows `.github/PULL_REQUEST_TEMPLATE.md` and ends with `Resolves #N`. The workflow labels the PR, so do not set a label. Then stop; the owner merges.
 
-Never: merge a PR, close an issue by hand, push to `tp-ui` or `main`, force-push, rewrite pushed history, or commit secrets or media. Ask before: adding a dependency, changing a settings or API shape, deleting a feature, or touching anything outside the issue's scope.
+Never: merge a PR (`gh pr merge`), close an issue by hand, push to `main`, force-push, rewrite pushed history, or commit secrets or media. Ask before: adding a dependency, changing a settings or API shape, deleting a feature, or touching anything outside the issue's scope.

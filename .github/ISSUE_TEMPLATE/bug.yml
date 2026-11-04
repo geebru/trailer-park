@@ -1,0 +1,30 @@
+name: Bug
+description: Something is not working
+title: "fix: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Title format: `fix(scope): what is wrong`, for example `fix(sidebar): tooltip is clipped by the overflow`.
+  - type: textarea
+    id: happens
+    attributes:
+      label: What happens
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should happen
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. "
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Page, viewport width, browser, and the app version if you know it. Screenshots help.

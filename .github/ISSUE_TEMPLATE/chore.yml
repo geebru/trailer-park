@@ -1,0 +1,19 @@
+name: Chore
+description: Internal work that doesn't affect the user experience
+title: "chore: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Title format: `type(scope): subject`. Use `docs` for documentation, `ci` for workflows, `refactor` for restructuring, `chore` for the rest.
+  - type: textarea
+    id: why
+    attributes:
+      label: What and why
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      placeholder: "- [ ] "
