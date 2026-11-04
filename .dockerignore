@@ -1,0 +1,11 @@
+# Allowlist: only what the Dockerfile copies goes into the build context.
+# A new module or folder must be added here and to the Dockerfile.
+*
+!requirements.txt
+!engine.py
+!app.py
+!api.py
+!library_cache.py
+!jobs.py
+!templates
+!static
