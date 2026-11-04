@@ -1,0 +1,25 @@
+name: Enhancement
+description: A new feature or an improvement to an existing one
+title: "feat: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Title format: `feat(scope): what should be possible`, for example `feat(settings): add a yt-dlp cookies file setting`.
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What should be possible that isn't today, and why.
+    validations:
+      required: true
+  - type: textarea
+    id: criteria
+    attributes:
+      label: Acceptance criteria
+      placeholder: "- [ ] "
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Pages or API routes involved, constraints, anything that must keep working.
