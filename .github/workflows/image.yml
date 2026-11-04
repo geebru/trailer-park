@@ -1,0 +1,168 @@
+name: Docker image
+
+# Builds the image, starts it and requests /health on every PR that touches the image, so a broken Dockerfile
+# is caught before a release rather than during one. Called from the release workflow it then pushes the
+# multi-arch image to GHCR. Run by hand ("Run workflow") it pushes a throwaway `test` tag, to check that the
+# registry login and push work.
+
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - requirements.txt
+      - "*.py"
+      - templates/**
+      - static/**
+      - .github/workflows/image.yml
+  workflow_call:
+    inputs:
+      major:
+        type: string
+        required: true
+      minor:
+        type: string
+        required: true
+      patch:
+        type: string
+        required: true
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  build:
+    name: Build and smoke test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        with:
+          platforms: arm64
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build for amd64 and load it for the smoke test
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          tags: trailer-park:smoke
+          provenance: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test
+        run: |
+          docker run -d --name smoke -p 8080:8080 trailer-park:smoke
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/health; then
+              echo
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs smoke
+          exit 1
+
+      - name: Build for amd64 and arm64 without pushing
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: false
+          provenance: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  publish:
+    name: Publish to GHCR
+    needs: build
+    if: ${{ github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check the tag matches the version in the code
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        env:
+          MAJOR: ${{ inputs.major }}
+          MINOR: ${{ inputs.minor }}
+          PATCH: ${{ inputs.patch }}
+        run: |
+          version="$MAJOR.$MINOR.$PATCH"
+          if ! grep -qF "APP_VERSION = \"$version\"" engine.py; then
+            echo "::error::engine.py does not say APP_VERSION = \"$version\", so the image would carry the wrong version."
+            exit 1
+          fi
+
+      - name: Work out the tags and labels
+        id: meta
+        env:
+          EVENT: ${{ github.event_name }}
+          MAJOR: ${{ inputs.major }}
+          MINOR: ${{ inputs.minor }}
+          PATCH: ${{ inputs.patch }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            version="test"
+            tags="$image:test"
+          else
+            version="$MAJOR.$MINOR.$PATCH"
+            tags="$image:$version"$'\n'"$image:$MAJOR.$MINOR"
+            # 0.x has no stable major line, so a bare "0" tag would mislead.
+            if [ "$MAJOR" != "0" ]; then
+              tags="$tags"$'\n'"$image:$MAJOR"
+            fi
+            tags="$tags"$'\n'"$image:latest"
+          fi
+          labels="org.opencontainers.image.version=$version"$'\n'"org.opencontainers.image.revision=$GITHUB_SHA"$'\n'"org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          {
+            echo "tags<<EOF"
+            echo "$tags"
+            echo "EOF"
+            echo "labels<<EOF"
+            echo "$labels"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        with:
+          platforms: arm64
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+
+      - name: Show what was published
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          first="$(echo "$TAGS" | head -n 1)"
+          docker buildx imagetools inspect "$first"
