@@ -6,6 +6,20 @@
   "include-v-in-tag": true,
   "bump-minor-pre-major": true,
   "changelog-path": "CHANGELOG.md",
+  "changelog-sections": [
+    {"type": "feat", "section": "✨ Features"},
+    {"type": "fix", "section": "🐛 Bug fixes"},
+    {"type": "perf", "section": "⚡ Performance"},
+    {"type": "docs", "section": "📝 Documentation"},
+    {"type": "revert", "section": "⬅️ Reverts"},
+    {"type": "test", "section": "Other changes", "hidden": false},
+    {"type": "refactor", "section": "Other changes", "hidden": false},
+    {"type": "chore", "section": "Other changes", "hidden": false},
+    {"type": "style", "section": "Other changes", "hidden": false},
+    {"type": "agent", "section": "Agent tooling", "hidden": true},
+    {"type": "ci", "section": "Other changes", "hidden": true},
+    {"type": "build", "section": "Other changes", "hidden": true}
+  ],
   "extra-files": ["engine.py", "README.md"],
   "packages": {
     ".": {}
