@@ -26,26 +26,11 @@ services:
   trailer-park:
     image: ghcr.io/geebru/trailer-park:latest
     container_name: trailer-park
-
-    networks:
-      - media-network
-
     volumes:
       - /path/to/media:/data/media
       - ./config:/config
-
-    # Optional: run as a specific host UID:GID.
-    # Check the right values on your host with: id
-    # user: "1000:1000"
-
     ports:
       - "8080:8080"
-
-    restart: unless-stopped
-
-networks:
-  media-network:
-    external: true
 ```
 
 Then start it and open `http://SERVER-IP:8080`:
