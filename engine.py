@@ -1,4 +1,4 @@
-"""Trailarr Parrk engine: settings, Arr/TMDB clients, scoring, downloads, trailer
+"""Trailer Park engine: settings, Arr/TMDB clients, scoring, downloads, trailer
 file handling, batch and watcher logic. No Flask imports here.
 
 Extracted unchanged from app.py (SPEC section 8.1, milestone M0). app.py imports this
@@ -29,7 +29,7 @@ from copy import deepcopy
 
 logging.basicConfig(
     level=logging.INFO,
-    format="[trailarr-parrk] %(message)s"
+    format="[trailer-park] %(message)s"
 )
 log = logging.getLogger(__name__)
 
@@ -719,7 +719,7 @@ def arr_get(connection, path):
         headers={
             "X-Api-Key": api_key,
             "Accept": "application/json",
-            "User-Agent": f"trailarr-parrk/{APP_VERSION}"
+            "User-Agent": f"trailer-park/{APP_VERSION}"
         }
     )
 
@@ -741,7 +741,7 @@ def send_discord(webhook_url, color, title, body):
         data=payload,
         headers={
             "Content-Type": "application/json",
-            "User-Agent": f"trailarr-parrk/{APP_VERSION}"
+            "User-Agent": f"trailer-park/{APP_VERSION}"
         },
         method="POST"
     )
@@ -796,7 +796,7 @@ def tmdb_get_with_token(token, path, params=None):
         headers={
             "Authorization": f"Bearer {token}",
             "Accept": "application/json",
-            "User-Agent": f"trailarr-parrk/{APP_VERSION}"
+            "User-Agent": f"trailer-park/{APP_VERSION}"
         },
         timeout=15
     )
@@ -1193,7 +1193,8 @@ ROOT_TRAILER_MAX_BYTES = 2 * 1024 ** 3  # never mistake a main movie for a trail
 def is_video_file(name):
     return (
         name.lower().endswith(TRAILER_VIDEO_EXTS)
-        and ".trailarr-new-" not in name
+        and ".trailer-park-new-" not in name
+        and ".trailarr-new-" not in name  # left behind by releases before the rename
         and not name.startswith(".")
     )
 
@@ -1330,7 +1331,7 @@ def check_latest_ytdlp():
         "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest",
         headers={
             "Accept": "application/vnd.github+json",
-            "User-Agent": f"trailarr-parrk/{APP_VERSION}"
+            "User-Agent": f"trailer-park/{APP_VERSION}"
         },
         timeout=20
     )
@@ -1487,7 +1488,7 @@ def update_ytdlp_override():
 
     req = urllib.request.Request(
         f"{base}/SHA2-256SUMS",
-        headers={"User-Agent": f"trailarr-parrk/{APP_VERSION}"}
+        headers={"User-Agent": f"trailer-park/{APP_VERSION}"}
     )
     with urllib.request.urlopen(req, timeout=30) as resp:
         sums_text = resp.read().decode("utf-8", errors="replace")
@@ -1504,7 +1505,7 @@ def update_ytdlp_override():
 
     req = urllib.request.Request(
         f"{base}/yt-dlp",
-        headers={"User-Agent": f"trailarr-parrk/{APP_VERSION}"}
+        headers={"User-Agent": f"trailer-park/{APP_VERSION}"}
     )
     with urllib.request.urlopen(req, timeout=60) as resp:
         binary_data = resp.read()
@@ -1666,7 +1667,7 @@ def download(yt_id, out_path_noext):
     ext = trailer_ext()
     target_path = f"{out_path_noext}.{ext}"
     unique = f"{os.getpid()}-{threading.get_ident()}-{uuid.uuid4().hex[:6]}"
-    temp_base = f"{out_path_noext}.trailarr-new-{unique}"
+    temp_base = f"{out_path_noext}.trailer-park-new-{unique}"
     cleanup_temp_files(temp_base)
 
     video_quality = str(cfg("video_quality"))
@@ -2001,7 +2002,7 @@ def owned_item(library_id, item_id):
 def detected_file(folder, path):
     """Return the detected trailer path matching `path`, or raise.
 
-    Only files Trailarr itself detected as trailers can be acted on, so a
+    Only files Trailer Park itself detected as trailers can be acted on, so a
     crafted form can never touch the main media file or anything else."""
     wanted = os.path.realpath(str(path or ""))
     for candidate in find_trailer_files(folder):
@@ -3585,7 +3586,7 @@ def test_discord_connection(form):
     send_discord(
         webhook,
         3066993,
-        "🎬 Trailarr Parrk connected",
+        "🎬 Trailer Park connected",
         "Discord webhook test successful."
     )
     save_settings({"discord_webhook_url": webhook})

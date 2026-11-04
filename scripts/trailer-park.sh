@@ -1,6 +1,6 @@
 #!/bin/sh
 # =============================================================================
-# trailarr-parrk.sh
+# trailer-park.sh
 # Trailer downloader for Radarr and Sonarr.
 #
 # SETUP
@@ -13,11 +13,11 @@
 #   Dry-run — fetches and scores from TMDB, prints results, skips download:
 #   radarr_eventtype="Download" radarr_movie_title="Dune" \
 #     radarr_movie_year="2021" radarr_movie_path="/movies/Dune (2021)" \
-#     radarr_movie_tmdbid="438631" sh trailarr-parrk.sh --dry-run
+#     radarr_movie_tmdbid="438631" sh trailer-park.sh --dry-run
 #
 #   Force-download a specific YouTube ID (no scoring applied):
-#   ./trailarr-parrk.sh --yt-id <ID> --title "Title" --year 2024
-#   ./trailarr-parrk.sh --yt-id <ID> --title "Title" --year 2024 --output /path --dry-run
+#   ./trailer-park.sh --yt-id <ID> --title "Title" --year 2024
+#   ./trailer-park.sh --yt-id <ID> --title "Title" --year 2024 --output /path --dry-run
 # =============================================================================
 
 # =============================================================================
@@ -52,7 +52,7 @@ DISCORD_WEBHOOK_URL=""
  
 TAB="$(printf '\t')"
  
-log() { printf '[trailarr-parrk] %s\n' "$*"; }
+log() { printf '[trailer-park] %s\n' "$*"; }
  
 notify() {
     [ -z "$DISCORD_WEBHOOK_URL" ] && return 0
@@ -205,7 +205,7 @@ main() {
  
     [ "$_event" = "Test" ] && {
         log "Test event received."
-        notify 3066993 "🎬 Trailarr Parrk connected" "Script connection confirmed."
+        notify 3066993 "🎬 Trailer Park connected" "Script connection confirmed."
         exit 0
     }
  

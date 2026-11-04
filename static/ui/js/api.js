@@ -18,7 +18,7 @@ async function request(method, path, body) {
   try {
     response = await fetch(`/api${path}`, options);
   } catch {
-    throw new ApiError(0, "network", "Can't reach Trailarr Parrk. Check that the container is running.");
+    throw new ApiError(0, "network", "Can't reach Trailer Park. Check that the container is running.");
   }
   let data = null;
   try { data = await response.json(); } catch { /* empty or non-JSON body */ }

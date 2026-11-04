@@ -1,7 +1,7 @@
 services:
-  trailarr-parrk:
+  trailer-park:
     build: .
-    container_name: trailarr-parrk
+    container_name: trailer-park
     # user: "1000:1000"
     networks:
       - media-network

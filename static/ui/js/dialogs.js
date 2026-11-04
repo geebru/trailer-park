@@ -173,7 +173,7 @@ export function openFiles(item, { onChange } = {}) {
       h("div", { class: "file__main" },
         h("div", { class: "file__name mono" }, f.path),
         h("div", { class: "file__meta" }, h("span", { class: "mono muted" }, bytes(f.size)),
-          h("span", { class: `status ${f.metadata ? "status--success" : ""}` }, f.metadata ? "Downloaded by Trailarr" : "Found on disk"),
+          h("span", { class: `status ${f.metadata ? "status--success" : ""}` }, f.metadata ? "Downloaded by Trailer Park" : "Found on disk"),
           f.matches ? null : h("span", { class: "flag tone-warning" }, icon("triangle-exclamation"), "Name mismatch"))),
       h("div", { class: "file__actions" },
         files.length > 1 ? btn("btn--tertiary btn--sm", "Keep only this", () => run("keep", f.path), null) : null,
@@ -237,7 +237,7 @@ export function openGrabAll(scope, { count, label, onChange } = {}) {
   const dlg = createDialog({ title: `Grab ${number(count)} missing trailer${count === 1 ? "" : "s"}?`, size: "sm" });
   const err = h("div", {});
   const go = btn("btn--primary", "Start grab", start, "wand-magic-sparkles");
-  dlg.body.append(h("p", { class: "hint hint--lead" }, "Trailarr will search for every missing trailer in ", h("strong", {}, label), ". Titles are downloaded one after another; progress shows in the sidebar."), err);
+  dlg.body.append(h("p", { class: "hint hint--lead" }, "Trailer Park will search for every missing trailer in ", h("strong", {}, label), ". Titles are downloaded one after another; progress shows in the sidebar."), err);
   dlg.footer.append(h("span", {}), h("div", { class: "dialog__actions" }, btn("btn--tertiary", "Cancel", dlg.close), go));
   async function start() {
     setDisabled(go, "Starting the grab…");

@@ -160,7 +160,7 @@ export function buildShell(root) {
     h("a", { class: "brand", href: "/" },
       h("span", { class: "brand__mark" }, icon("trailer", "icon brand__icon")),
       h("span", { class: "brand__text" },
-        h("span", { class: "brand__name" }, "Trailarr Parrk"),
+        h("span", { class: "brand__name" }, "Trailer Park"),
         h("span", { class: "brand__sub" }, "Trailer automation")),
       h("span", { class: "sr-only" }, ", overview")),
     toggleButton,
