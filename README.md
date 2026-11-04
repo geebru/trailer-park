@@ -32,7 +32,7 @@ v0.8.0 replaces the web interface: one app with Overview, Trailers, Settings and
 ```yaml
 services:
   trailer-park:
-    build: .
+    image: ghcr.io/geebru/trailer-park:latest
     container_name: trailer-park
 
     networks:
@@ -57,6 +57,8 @@ networks:
     external: true
 ```
 
+The image is published for `linux/amd64` and `linux/arm64`. Tags are `X.Y.Z`, `X.Y` and `latest` (from 1.0 also `X`). `latest` is the newest release; pin a version tag such as `0.9.0` if you want to choose when to upgrade.
+
 ### User mapping
 
 `user:` uses Docker's `UID:GID` format:
@@ -79,20 +81,17 @@ On Unraid, `99:100` (`nobody:users`) is a common mapping, but use the IDs that m
 
 ## Start / upgrade
 
-First install:
+First install: save the compose file above as `docker-compose.yml`, set your media path, then:
 
 ```bash
-git clone https://github.com/geebru/trailer-park.git
-cd trailer-park
-docker compose up -d --build
+docker compose up -d
 ```
 
 Upgrade an existing install:
 
 ```bash
-cd trailer-park
-git pull
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
 Open:
@@ -101,7 +100,9 @@ Open:
 http://SERVER-IP:8080
 ```
 
-Upgrading from Trailarr Parrk: the project was renamed Trailer Park. Your `/config` volume and settings are unchanged. The example compose file now names the service and container `trailer-park`. If you use the example as it is, run `docker compose down` **before** `git pull`, so the old `trailarr-parrk` container does not keep port 8080, then `docker compose up -d --build`. A compose file of your own can keep its old names. If you run the manual script from Radarr or Sonarr, point the connection at `scripts/trailer-park.sh` (it was `trailarr-parrk.sh`). Log lines are now prefixed `[trailer-park]`.
+To build from source instead, clone the repo, replace `image:` with `build: .` in your compose file, and use `docker compose up -d --build` (then `git pull` and the same command to upgrade).
+
+Upgrading from Trailarr Parrk: the project was renamed Trailer Park. Your `/config` volume and settings are unchanged. If you use the example compose file, rename the service and container to `trailer-park` and use the image above. Run `docker compose down` **before** you change the file, so the old `trailarr-parrk` container does not keep port 8080, then `docker compose up -d`. A compose file of your own can keep its old names. If you run the manual script from Radarr or Sonarr, point the connection at `scripts/trailer-park.sh` (it was `trailarr-parrk.sh`). Log lines are now prefixed `[trailer-park]`.
 
 Upgrading from v0.7.x: keep the same `/config` volume. Your connections and settings carry over. The old `libraries` list in `settings.json` is no longer used (it stays in the file, ignored). Old bookmarks such as `/library/movies` redirect to `/trailers`.
 

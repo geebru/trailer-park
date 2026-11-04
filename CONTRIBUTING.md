@@ -214,7 +214,7 @@ Open `http://localhost:8080` (or the appropriate Docker-host address), verify th
 
 ### Build and tag a new version
 
-After making and testing release changes, select a new version (example: `v0.7.1`) and update `README.md` and `CHANGELOG.md` consistently. The commands below create local image tags; they do not publish anything:
+Versions and tags come from the release PR (see the checklist below), so do not pick or edit a version by hand. To try a build locally, tag it yourself. The commands below create local image tags; they do not publish anything:
 
 ```bash
 docker build --pull -t trailer-park:v0.7.1 -t trailer-park:latest .
@@ -232,7 +232,7 @@ docker buildx create --name trailer-park-builder --driver docker-container --use
 docker buildx inspect --bootstrap
 ```
 
-If that builder already exists, select it with `docker buildx use trailer-park-builder` instead. Verify the reported platforms before continuing. The dependencies in this image, especially the availability of `deno` in Alpine for the target platform, **must be confirmed with actual builds and runtime tests**; multi-architecture support is not established merely by specifying both platforms.
+If that builder already exists, select it with `docker buildx use trailer-park-builder` instead. Verify the reported platforms before continuing. CI builds both platforms and smoke tests the amd64 image on every pull request that touches the image, and the release workflow publishes both. `deno`, `ffmpeg` and `curl` are available on Alpine for amd64 and arm64 (checked with an arm64 build), but a change to the Dockerfile or its packages should still be confirmed with real builds.
 
 A multi-platform image is normally pushed directly to a registry rather than imported with `--load` into the classic Docker image store. The following is an **optional publishing example**—replace the registry path with one you control:
 
@@ -253,7 +253,7 @@ Only use `--push` after authenticating, verifying registry permissions, and obta
 
 Publishing requires registry credentials and an authorized image namespace. Never commit registry tokens.
 
-The project's registry is the **GitHub Container Registry** (`ghcr.io`). Images appear under the repository owner's *Packages* tab. Authenticate with a personal access token that has the `write:packages` scope (GitHub → Settings → Developer settings). Pass it through standard input, not on the command line:
+Release images are published automatically to the **GitHub Container Registry** (`ghcr.io/geebru/trailer-park`) by the release workflow when a release PR is merged; do not push release tags by hand. The steps below are for testing a build in your own namespace. Authenticate with a personal access token that has the `write:packages` scope (GitHub → Settings → Developer settings). Pass it through standard input, not on the command line:
 
 ```bash
 export IMAGE=ghcr.io/OWNER/trailer-park
@@ -267,9 +267,7 @@ docker push "$IMAGE:$VERSION"
 docker push "$IMAGE:latest"
 ```
 
-Only the maintainer publishes to this registry. Contributors who want to test a published image should push to their own namespace instead.
-
-No automated release workflow (GitHub Actions) is configured yet; images are built and pushed manually. For multi-platform publication, use the Buildx procedure above with your chosen image name; a conventional single-platform `docker push` does not produce a multi-platform manifest by itself.
+Only the release workflow publishes to the project's registry. To test a published image, push to your own namespace. A conventional single-platform `docker push` does not produce a multi-platform manifest; use the Buildx procedure above for that.
 
 ### End-to-end release checklist
 
@@ -277,12 +275,12 @@ No automated release workflow (GitHub Actions) is configured yet; images are bui
 2. Review the open release PR that release-please keeps up to date. It bumps the version (`APP_VERSION` in `engine.py`, the README release line) and adds the new `CHANGELOG.md` section from the commit history. Edit its notes so upgrade instructions are included. Do not bump the version by hand.
 3. Build a fresh image and complete functional tests using test media and persistent `/config`.
 4. Test the supported platforms separately, especially if claiming `arm64` compatibility.
-5. Merge the release PR. That creates the `vX.Y.Z` tag and the GitHub release. Tag the image with the **same** version.
-6. If you maintain published images, push the intended tags to your configured registry; update `latest` only when appropriate.
+5. Merge the release PR. That creates the `vX.Y.Z` tag and the GitHub release. The release workflow then scans the full history for secrets and, if that is clean, builds and smoke tests the image and pushes it to GHCR as `X.Y.Z`, `X.Y` and `latest` (and `X` from 1.0), with the same version as the tag.
+6. Check the release run in the Actions tab: the secret scan and image jobs should be green, and the package page should list the new tags for both `linux/amd64` and `linux/arm64`.
 7. Check that the GitHub release carries the matching `CHANGELOG.md` section, including any deployment/upgrade instructions.
 8. Recreate a test installation using the published image (or rebuilt source), check logs, confirm `/config` persistence, and verify media permissions.
 
-**Rollback:** Keep the previous known-good image tag and a backup of `/config`. To revert a registry-based deployment, change its image reference to the previous tag and recreate the container. For the supplied `build: .` Compose setup, restore the previous tested source revision before rebuilding. Restoring an older application version does not automatically reverse changes made to settings or media; test rollback compatibility and restore backups when necessary.
+**Rollback:** Keep the previous known-good image tag and a backup of `/config`. To revert a registry-based deployment, change its image reference to the previous version tag and recreate the container. For a compose file that builds from source, restore the previous tested source revision before rebuilding. Restoring an older application version does not automatically reverse changes made to settings or media; test rollback compatibility and restore backups when necessary.
 
 ## Pull requests
 

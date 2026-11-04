@@ -1,0 +1,28 @@
+version: 2
+
+# Prefixes keep Dependabot's PR titles in the Conventional Commit form the "Title format" check requires.
+# None of them release: `build` and `ci` are not releasable types, so the owner decides when a bump ships.
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+      include: scope
+
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: build
+      include: scope
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: build
+      include: scope
