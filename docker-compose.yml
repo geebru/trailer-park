@@ -1,6 +1,6 @@
 services:
   trailer-park:
-    build: .
+    image: ghcr.io/geebru/trailer-park:latest
     container_name: trailer-park
     # user: "1000:1000"
     networks:
@@ -10,5 +10,8 @@ services:
       - ./config:/config
     ports:
       - "8080:8080"
-    network_mode: media-network
     restart: unless-stopped
+
+networks:
+  media-network:
+    external: true
