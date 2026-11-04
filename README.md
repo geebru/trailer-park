@@ -2,7 +2,7 @@
 
 Downloads local trailers for Radarr and Sonarr titles using TMDB + yt-dlp.
 
-Current release: **v0.8.0**
+Current release: **v0.8.0** <!-- x-release-please-version -->
 
 v0.8.0 replaces the web interface: one app with Overview, Trailers, Settings and Activity, live download logs, and a JSON API. Libraries are gone; every Radarr/Sonarr connection is simply listed under Movies or Shows. See the [changelog](CHANGELOG.md) for upgrade notes. v0.7.0 detects existing trailers under any name or folder, so Missing only lists titles with no trailer at all, and adds rename/keep/replace actions for them. v0.6.4 added an optional YouTube search fallback for titles TMDB has no working trailer for. v0.6.3 tries the next TMDB trailer when YouTube says a video is unavailable, falls back to season trailers for shows with no show-level trailer (first season by default, configurable), and ranks later-season trailers behind spoiler-free ones. v0.6.2 added a Radarr/Sonarr API watcher (no webhook needed), fixes webhooks reporting trailers as downloaded for newly added films, and finds original-language trailers for anime and other non-English titles. v0.6.1 added safe batch cancellation, automatic daily yt-dlp update checks, clearer configured-state handling and fixes trailer finalization for paths containing characters such as `[tmdbid-123456]`.
 

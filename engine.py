@@ -33,7 +33,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-APP_VERSION = "0.8.0"
+APP_VERSION = "0.8.0"  # x-release-please-version
 
 
 # ── Paths / persistent state ──────────────────────────────────────────────
