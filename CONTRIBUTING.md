@@ -294,6 +294,8 @@ Create a branch from `main` and commit your changes with [Conventional Commit](h
 
 Screenshots are helpful for UI changes. Redact credentials, hostnames, and private media information.
 
+By contributing, you agree that your contribution is licensed under the project's [MIT License](LICENSE).
+
 ## Documentation and releases
 
 - Update `README.md` when setup steps, configuration, UI behavior, or documented commands change.

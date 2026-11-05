@@ -4,7 +4,7 @@ Downloads local trailers for your Radarr and Sonarr titles. It looks each title 
 
 Current release: **v0.9.0** <!-- x-release-please-version -->
 
-[Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
+[Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [License](LICENSE)
 
 ## What it does
 
@@ -226,3 +226,14 @@ Every setting also has an environment variable that gives it its initial value: 
 ## Security
 
 Trailer Park has no authentication of its own. Keep it on a trusted network, or put it behind something that authenticates before you expose it beyond your LAN. The config directory contains your API keys and the Discord webhook URL.
+
+---
+
+## License
+
+Trailer Park is released under the [MIT License](LICENSE). Third-party material keeps its own license:
+
+- Font Awesome Free icons (`static/ui/js/icons.js`): CC BY 4.0.
+- DM Sans and IBM Plex Mono (`static/ui/fonts/`): SIL Open Font License 1.1, with the license files alongside.
+- axe-core (`dev/axe/`): MPL-2.0. It is a development tool and is not part of the image.
+- The Docker image also contains ffmpeg, deno, yt-dlp, Flask, Waitress and Alpine Linux packages, each under its own license.
