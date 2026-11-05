@@ -536,7 +536,7 @@ def clear_activity():
 ACTIVITY_KINDS = {
     "grab": "grab", "force": "grab", "rename": "rename", "delete": "delete",
     "batch": "batch", "batch cancelled": "batch", "batch finished": "batch",
-    "yt-dlp update": "ytdlp", "cleanup": "cleanup",
+    "yt-dlp update": "ytdlp", "cleanup": "cleanup", "sync": "sync",
 }
 
 
@@ -3358,7 +3358,22 @@ def watch_sonarr(connection, conn_state, first_run):
     return triggers
 
 
-def watch_connection(connection, state):
+def record_sync(connection, conn_state, detail):
+    """Log a manual Sync now check, so a check that found nothing is still visible."""
+    count = len(conn_state.get("movies") or conn_state.get("series") or [])
+    record_activity({
+        "source": "Sync now",
+        "arr_type": connection.get("type", ""),
+        "connection_id": connection.get("id", ""),
+        "connection": connection.get("name", ""),
+        "status": "success",
+        "action": "sync",
+        "title": connection.get("name", ""),
+        "detail": f"Checked {count} title{'' if count == 1 else 's'}. {detail}"
+    })
+
+
+def watch_connection(connection, state, manual=False):
     connection_id = connection.get("id")
     conn_state = state.setdefault(connection_id, {})
     first_run = not conn_state.get("initialized")
@@ -3386,6 +3401,12 @@ def watch_connection(connection, state):
             f"Watcher: baseline recorded for {connection.get('name', connection_id)}. "
             "Existing items are not grabbed."
         )
+        if manual:
+            record_sync(
+                connection, conn_state,
+                "First check of this connection: baseline recorded, existing "
+                "titles are not grabbed."
+            )
         return
 
     # Save the new baseline before downloading, so a crash mid-download
@@ -3406,6 +3427,20 @@ def watch_connection(connection, state):
             "status": status
         }
         save_watch_state(state)
+
+    if manual:
+        if triggers:
+            n = len(triggers)
+            record_sync(
+                connection, conn_state,
+                f"{n} new or upgraded title{'' if n == 1 else 's'}; "
+                "any downloads are listed separately."
+            )
+        else:
+            record_sync(
+                connection, conn_state,
+                "Nothing new or upgraded, so there was nothing to grab."
+            )
 
 
 WATCH_RUN_LOCK = threading.Lock()
@@ -3451,7 +3486,7 @@ def _run_watch_cycle(force=False):
                     continue
             except (TypeError, ValueError):
                 pass
-        watch_connection(connection, state)
+        watch_connection(connection, state, manual=force)
         save_watch_state(state)
 
 
