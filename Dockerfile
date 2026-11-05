@@ -2,7 +2,8 @@ FROM python:3.12-alpine
 
 LABEL org.opencontainers.image.title="Trailer Park" \
       org.opencontainers.image.description="Downloads local trailers for Radarr and Sonarr titles using TMDB and yt-dlp." \
-      org.opencontainers.image.source="https://github.com/geebru/trailer-park"
+      org.opencontainers.image.source="https://github.com/geebru/trailer-park" \
+      org.opencontainers.image.licenses="MIT"
 
 RUN apk add --no-cache \
       ffmpeg \
@@ -17,6 +18,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir --break-system-packages -r requirements.txt yt-dlp
 
+COPY LICENSE .
 COPY engine.py .
 COPY app.py .
 COPY api.py .
