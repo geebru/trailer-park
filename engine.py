@@ -3358,18 +3358,20 @@ def watch_sonarr(connection, conn_state, first_run):
     return triggers
 
 
-def record_sync(connection, conn_state, detail):
-    """Log a manual Sync now check, so a check that found nothing is still visible."""
-    count = len(conn_state.get("movies") or conn_state.get("series") or [])
+def record_sync(connection, conn_state, detail, status="success"):
+    """Log a manual Sync now check, so one that found nothing or failed is still visible."""
+    if status == "success":
+        count = len(conn_state.get("movies") or conn_state.get("series") or [])
+        detail = f"Checked {count} title{'' if count == 1 else 's'}. {detail}"
     record_activity({
         "source": "Sync now",
         "arr_type": connection.get("type", ""),
         "connection_id": connection.get("id", ""),
         "connection": connection.get("name", ""),
-        "status": "success",
+        "status": status,
         "action": "sync",
         "title": connection.get("name", ""),
-        "detail": f"Checked {count} title{'' if count == 1 else 's'}. {detail}"
+        "detail": detail
     })
 
 
@@ -3390,6 +3392,8 @@ def watch_connection(connection, state, manual=False):
         conn_state["last_check"] = utc_now()
         conn_state["last_error"] = str(e)[:300]
         log.warning(f"Watcher: {connection.get('name', connection_id)} check failed: {e}")
+        if manual:
+            record_sync(connection, conn_state, f"Check failed: {str(e)[:300]}", status="error")
         return
 
     conn_state["initialized"] = True
