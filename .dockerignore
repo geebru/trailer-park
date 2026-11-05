@@ -2,6 +2,7 @@
 # A new module or folder must be added here and to the Dockerfile.
 *
 !requirements.txt
+!LICENSE
 !engine.py
 !app.py
 !api.py
