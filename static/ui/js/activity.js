@@ -36,6 +36,9 @@ export function describeActivity(e) {
       return { icon: "trash", tone, title: "Trailer files removed", sub: join(subject, clip(e.detail)) };
     case "batch":
       return { icon: "list-check", tone, title: /cancel/i.test(e.action || "") ? "Batch cancelled" : "Batch finished", sub: join(e.title, clip(e.detail)) };
+    case "sync":
+      return { icon: e.status === "error" ? "circle-xmark" : "arrows-rotate", tone,
+               title: e.status === "error" ? "Sync failed" : "Sync checked", sub: join(e.title, clip(e.detail)) };
     case "ytdlp":
       return { icon: "terminal", tone: "neutral", title: "yt-dlp updated", sub: clip(e.detail) };
     case "cleanup":

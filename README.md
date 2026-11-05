@@ -109,7 +109,7 @@ A download opens a live log with progress. **Run in background** closes it witho
 
 ### Activity
 
-A paged log of what happened: trailers downloaded (including manual ones), no suitable match found, failed downloads, renames, removed files, batches finished or cancelled, yt-dlp updates and maintenance. Entries older than the retention period are removed automatically.
+A paged log of what happened: trailers downloaded (including manual ones), no suitable match found, failed downloads, renames, removed files, batches finished or cancelled, yt-dlp updates, maintenance, and one entry per connection each time you press **Sync now** (so a check that found nothing, or failed, is still visible; the scheduled checks are not logged). Entries older than the retention period are removed automatically.
 
 ---
 
