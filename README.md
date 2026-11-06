@@ -128,7 +128,7 @@ Settings are saved with **Save changes** (or **Discard**). Connections are saved
 | **TMDB** | Your TMDB Read Access Token, with **Test key**. |
 | **Downloads** | yt-dlp version and updates. **Resolution** (maximum: 480p, 720p, **1080p**, 4K), **Output container** (**mkv** or mp4; mp4 prefers H.264 so files play on more devices) and **Concurrent downloads** (**1** to 4). Changes only affect new downloads. |
 | **Automation** | **Sync interval** (Off, **5**, 10, 15, 30 minutes, 1, 6 or 24 hours), **Sync now**, and **Activity retention** (60, **90** or 180 days, 1 year, or forever). |
-| **Notifications** | An optional Discord webhook URL with **Send test** (a successful test saves it), and toggles for **Trailer downloaded** and **Grab failed** (both on by default). Batches and Sync now send one summary instead of one message per title. |
+| **Notifications** | An optional Discord webhook URL (only `https://discord.com/api/webhooks/...` addresses are accepted) with **Send test** (a successful test saves it), and toggles for **Trailer downloaded** and **Grab failed** (both on by default). Batches and Sync now send one summary instead of one message per title. |
 
 **Automatic grabs** come from a watcher that polls each connection's API at the sync interval (Off turns automatic grabs off). Radarr grabs on import and upgrade. Sonarr grabs when a series is added, and if its folder does not exist yet it waits (up to 30 days). The first check of a connection only records a baseline, so use **Grab N missing** for titles that were already there. **Sync now** runs a check immediately. Existing trailers are kept on upgrades and on later episode imports.
 
