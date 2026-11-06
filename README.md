@@ -122,7 +122,7 @@ Settings are saved with **Save changes** (or **Discard**). Connections are saved
 
 | Section | What it controls |
 |---|---|
-| **Connections** | Radarr and Sonarr instances: name, type, base URL, API key. Radarr connections feed Movies, Sonarr connections feed Shows. |
+| **Connections** | Radarr and Sonarr instances: name, type, base URL (no username or password in it), API key. Radarr connections feed Movies, Sonarr connections feed Shows. |
 | **Naming** | **Media folder** (default `/data/media`). **Trailer folder** (default `trailers`; leave blank to save beside the media file). **File name template** (default `{title} ({year}).trailer`; variables `{title}` and `{year}`). A live **Output preview**. |
 | **Scoring** | **Positive keywords** and **Negative keywords** (see below), and the **YouTube search fallback** (off by default). |
 | **TMDB** | Your TMDB Read Access Token, with **Test key**. |
@@ -228,7 +228,7 @@ Every setting also has an environment variable that gives it its initial value: 
 
 ## Security
 
-Trailer Park has no authentication of its own. Keep it on a trusted network, or put it behind something that authenticates before you expose it beyond your LAN. The config directory contains your API keys and the Discord webhook URL.
+Trailer Park has no authentication of its own. Keep it on a trusted network, or put it behind something that authenticates before you expose it beyond your LAN. The config directory contains your API keys and the Discord webhook URL. They are never returned by the API, and the app removes them from log lines, job logs, Activity entries and error messages before they are written.
 
 ---
 

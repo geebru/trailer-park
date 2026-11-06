@@ -24,7 +24,7 @@ PUBLIC_FIELDS = ("key", "connection_id", "connection_name", "type", "id", "title
 
 
 def error(code, message, status=400):
-    return jsonify({"error": {"code": code, "message": message}}), status
+    return jsonify({"error": {"code": code, "message": E.redact_secrets(message)}}), status
 
 
 def public(snap):

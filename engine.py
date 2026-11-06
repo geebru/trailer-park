@@ -226,6 +226,94 @@ def get_connections():
         return deepcopy(SETTINGS.get("arr_connections", []))
 
 
+# ── Keeping secrets out of logs, Activity and error text ─────────────────
+#
+# The API never returns a stored secret, but one can still end up in text that was
+# not meant as output: a log line, an Activity entry, a job log streamed to the
+# browser, a watcher or batch error, an exception message. redact_secrets() replaces
+# every configured secret in such text, and is applied where that text is written
+# (the logging handler, log_step, record_activity, the watcher, API error replies).
+
+REDACTED = "[redacted]"
+MIN_SECRET_LENGTH = 6      # shorter values would also match ordinary words
+
+
+def secret_values():
+    """Every configured secret, longest first: the TMDB token, the Discord webhook
+    URL and its token on its own, each Arr API key, and any password in an Arr URL."""
+    values = {str(cfg(key) or "") for key in SECRET_SETTING_KEYS}
+    try:
+        parts = urllib.parse.urlparse(str(cfg("discord_webhook_url") or "")).path.strip("/").split("/")
+    except ValueError:
+        parts = []
+    if len(parts) >= 4 and parts[-2].isdigit():
+        values.add(parts[-1])           # the token, in case it is logged on its own
+    for connection in get_connections():
+        values.add(str(connection.get("api_key") or ""))
+        try:
+            values.add(urllib.parse.urlsplit(str(connection.get("url") or "")).password or "")
+        except ValueError:
+            pass
+    return sorted((v for v in values if len(v) >= MIN_SECRET_LENGTH), key=len, reverse=True)
+
+
+def redact_secrets(text):
+    """`text` with every configured secret replaced by [redacted]."""
+    if not text:
+        return text
+    text = str(text)
+    for value in secret_values():
+        text = text.replace(value, REDACTED)
+    return text
+
+
+def redact_value(value):
+    """redact_secrets() applied to every string inside a dict or list."""
+    if isinstance(value, str):
+        return redact_secrets(value)
+    if isinstance(value, dict):
+        return {key: redact_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [redact_value(item) for item in value]
+    return value
+
+
+def strip_url_credentials(url):
+    """`url` without any username or password."""
+    try:
+        parts = urllib.parse.urlsplit(url)
+        if parts.username is None and parts.password is None:
+            return url
+        host = parts.hostname or ""
+        if ":" in host:
+            host = f"[{host}]"
+        port = f":{parts.port}" if parts.port else ""
+        return parts._replace(netloc=f"{host}{port}").geturl()
+    except ValueError:
+        return url
+
+
+class RedactingFilter(logging.Filter):
+    """Redacts secrets from every record before any handler writes it, including
+    the text of a traceback."""
+
+    def filter(self, record):
+        try:
+            record.msg = redact_secrets(record.getMessage())
+            record.args = ()
+            if record.exc_info:
+                record.exc_text = redact_secrets(
+                    logging.Formatter().formatException(record.exc_info))
+                record.exc_info = None
+        except Exception:       # never let logging itself fail
+            pass
+        return True
+
+
+for _handler in logging.getLogger().handlers:
+    _handler.addFilter(RedactingFilter())
+
+
 def get_libraries():
     """One catch-all library per connection (SPEC 3.4). library_id == connection_id.
     A stored "libraries" key in settings.json is ignored."""
@@ -448,7 +536,12 @@ def validate_connections(connections, existing_connections=None):
 
         parsed = urllib.parse.urlparse(url)
         if parsed.scheme not in ("http", "https") or not parsed.netloc:
-            raise ValueError(f"Invalid URL for {name}: {url}")
+            raise ValueError(f"Invalid URL for {name}: {strip_url_credentials(url)}")
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError(
+                f"The URL for {name} must not contain a username or password. "
+                "Put the API key in the API key field."
+            )
 
         existing = existing_by_id.get(connection_id, {})
         clear_key = bool(raw.get("clear_api_key"))
@@ -491,7 +584,7 @@ def record_activity(event):
         "id": uuid.uuid4().hex,
         "timestamp": utc_now(),
         "app_version": APP_VERSION,
-        **event
+        **redact_value(event)
     }
 
     os.makedirs(os.path.dirname(ACTIVITY_FILE) or CONFIG_DIR, exist_ok=True)
@@ -822,7 +915,7 @@ def notify(color, title, body, event=None):
         return
 
     try:
-        send_discord(webhook_url, color, title, body)
+        send_discord(webhook_url, color, redact_secrets(title), redact_secrets(body))
     except Exception as e:
         log.warning(f"Discord notification failed: {e}")
 
@@ -1455,7 +1548,7 @@ def check_and_store_latest_ytdlp():
     except Exception as e:
         status.update({
             "last_attempted": attempted,
-            "last_error": str(e)
+            "last_error": redact_secrets(str(e))
         })
         save_ytdlp_status(status)
         raise
@@ -1622,7 +1715,7 @@ def job_cancelled():
 
 def log_step(text, stream="app", level=logging.INFO):
     """Log to the container log and, inside a job, to the job's output."""
-    text = str(text).rstrip()
+    text = redact_secrets(str(text).rstrip())
     if not text:
         return
     if not (stream == "yt-dlp" and PROGRESS_RE.match(text)):
@@ -3099,7 +3192,7 @@ def run_batch_task(task):
         log.exception(f"Batch grab failed for {label}")
         with BATCH_LOCK:
             BATCH_STATE["failed"] += 1
-            BATCH_STATE["last_error"] = f"{label}: {e}"
+            BATCH_STATE["last_error"] = redact_secrets(f"{label}: {e}")
 
     finally:
         with BATCH_LOCK:
@@ -3435,7 +3528,7 @@ def watch_connection(connection, state, manual=False):
             return
     except Exception as e:
         conn_state["last_check"] = utc_now()
-        conn_state["last_error"] = str(e)[:300]
+        conn_state["last_error"] = redact_secrets(str(e))[:300]
         log.warning(f"Watcher: {connection.get('name', connection_id)} check failed: {e}")
         if manual:
             record_sync(connection, conn_state, f"Check failed: {str(e)[:300]}", status="error")
@@ -3636,7 +3729,7 @@ def connection_public(connection, watch_state=None):
         "id": connection_id,
         "name": connection.get("name", ""),
         "type": connection.get("type", "radarr"),
-        "url": connection.get("url", ""),
+        "url": strip_url_credentials(connection.get("url", "")),
         "configured": bool(connection.get("url") and connection.get("api_key")),
         "saved": True,
         "watch": {
