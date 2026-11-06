@@ -751,8 +751,8 @@ def validate_discord_webhook(url):
         or not DISCORD_WEBHOOK_PATH.fullmatch(parsed.path)
     ):
         raise ValueError(
-            "That is not a Discord webhook URL. It should look like "
-            "https://discord.com/api/webhooks/<id>/<token>."
+            "That is not a Discord webhook URL. It should start with "
+            "https://discord.com/api/webhooks/"
         )
     return url
 
