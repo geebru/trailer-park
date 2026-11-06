@@ -331,7 +331,7 @@ export function mount(container, { query, navigate }) {
 
   /* ── Notifications ───────────────────────────────────────────────── */
   const notifications = () => h("div", { class: "stack" },
-    secretField("discord_webhook_url", "Discord webhook URL", "Optional", "discord", "Send test"),
+    secretField("discord_webhook_url", "Discord webhook URL", "Optional. Must be a discord.com webhook.", "discord", "Send test"),
     h("div", {}, h("div", { class: "label" }, "Events to send"),
       h("div", { class: "stack stack--tight" },
         toggle("Trailer downloaded", "Send the title, source and file name after a successful download.", draft.notify_success === "on", (v) => setDraft("notify_success", v ? "on" : "off")),

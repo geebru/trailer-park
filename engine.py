@@ -724,9 +724,54 @@ def arr_get(connection, path):
     )
 
 
+DISCORD_WEBHOOK_HOSTS = (
+    "discord.com", "ptb.discord.com", "canary.discord.com", "discordapp.com",
+)
+DISCORD_WEBHOOK_PATH = re.compile(r"/api(/v\d+)?/webhooks/\d+/[\w-]+/?")
+
+
+def validate_discord_webhook(url):
+    """Return the webhook URL if it is a real Discord webhook, else raise ValueError.
+    The message never repeats the URL: its token is the secret."""
+    url = str(url or "").strip()
+    if not url:
+        return ""
+    try:
+        parsed = urllib.parse.urlparse(url)
+        port = parsed.port
+    except ValueError:
+        parsed, port = None, None
+    if (
+        not parsed
+        or parsed.scheme != "https"
+        or (parsed.hostname or "").lower() not in DISCORD_WEBHOOK_HOSTS
+        or port not in (None, 443)
+        or parsed.username is not None
+        or parsed.password is not None
+        or not DISCORD_WEBHOOK_PATH.fullmatch(parsed.path)
+    ):
+        raise ValueError(
+            "That is not a Discord webhook URL. It should start with "
+            "https://discord.com/api/webhooks/"
+        )
+    return url
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A webhook has no reason to redirect, and following one would send the
+    message (and the secret URL's trust) somewhere else."""
+
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+_webhook_opener = urllib.request.build_opener(_NoRedirect)
+
+
 def send_discord(webhook_url, color, title, body):
     if not webhook_url:
         raise RuntimeError("Discord webhook is not configured.")
+    webhook_url = validate_discord_webhook(webhook_url)
 
     payload = json.dumps({
         "embeds": [{
@@ -746,7 +791,7 @@ def send_discord(webhook_url, color, title, body):
         method="POST"
     )
 
-    with urllib.request.urlopen(req, timeout=10) as resp:
+    with _webhook_opener.open(req, timeout=10) as resp:
         return resp.status
 
 
@@ -3554,6 +3599,8 @@ def apply_settings_update(body):
             update[key] = ""
         else:
             submitted = str(body.get(key, "") or "").strip()
+            if key == "discord_webhook_url" and submitted:
+                submitted = validate_discord_webhook(submitted)
             update[key] = submitted or str(cfg(key) or "")
 
     if "connections" in body:
@@ -3621,7 +3668,7 @@ def test_tmdb_connection(form):
 
 
 def test_discord_connection(form):
-    webhook = effective_secret(form, "discord_webhook_url")
+    webhook = validate_discord_webhook(effective_secret(form, "discord_webhook_url"))
     send_discord(
         webhook,
         3066993,
