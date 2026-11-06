@@ -122,7 +122,7 @@ Settings are saved with **Save changes** (or **Discard**). Connections are saved
 
 | Section | What it controls |
 |---|---|
-| **Connections** | Radarr and Sonarr instances: name, type, base URL (no username or password in it), API key. Radarr connections feed Movies, Sonarr connections feed Shows. |
+| **Connections** | Radarr and Sonarr instances: name, type, base URL (no username or password in it), API key. Editing a connection keeps its saved key unless you point it at a different server, which needs the key entered again. Radarr connections feed Movies, Sonarr connections feed Shows. |
 | **Naming** | **Media folder** (default `/data/media`). **Trailer folder** (default `trailers`; leave blank to save beside the media file). **File name template** (default `{title} ({year}).trailer`; variables `{title}` and `{year}`). A live **Output preview**. |
 | **Scoring** | **Positive keywords** and **Negative keywords** (see below), and the **YouTube search fallback** (off by default). |
 | **TMDB** | Your TMDB Read Access Token, with **Test key**. |
@@ -193,7 +193,7 @@ The interface is a client of a JSON API under `/api`, with no authentication. `G
 - Requests that change something need `Content-Type: application/json` (otherwise 415). Errors look like `{"error": {"code": "...", "message": "..."}}`.
 - Long actions (grab, replace, batches) return 202 with a job, which you poll with `GET /api/jobs/<id>?after=<seq>`. Only one job can be active per title (409 `job_active`).
 - Titles are addressed as `/api/items/<connection_id>/<item_id>`.
-- Secrets (the TMDB token, the Discord webhook) are never returned, only whether they are configured.
+- Secrets (the TMDB token, the Discord webhook) are never returned, only whether they are configured. An Arr connection keeps its saved API key when you leave it blank, but only while its URL points to the same server (scheme, host and port); a different server needs the key again (`400`).
 
 | Area | Endpoints |
 |---|---|

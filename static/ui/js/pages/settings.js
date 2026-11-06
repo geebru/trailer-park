@@ -159,8 +159,11 @@ export function mount(container, { query, navigate }) {
     const typeSel = selectInput([["radarr", "Radarr"], ["sonarr", "Sonarr"]], f.type, (v) => { f.type = v; });
     typeSel.el.disabled = !!existing;
     const name = textInput(f.name, (v) => { f.name = v; });
-    const url = textInput(f.url, (v) => { f.url = v; }, { placeholder: "http://radarr:7878" });
-    const key = textInput("", (v) => { f.api_key = v; }, { type: "password", placeholder: existing ? "Leave blank to keep the saved key" : "API key" });
+    const sameServer = (a, b) => { try { return new URL(a).origin === new URL(b).origin; } catch { return false; } };
+    const keyHint = () => !existing ? "API key"
+      : sameServer(f.url, existing.url) ? "Leave blank to keep the saved key" : "Enter the API key for this server";
+    const url = textInput(f.url, (v) => { f.url = v; key.el.placeholder = keyHint(); }, { placeholder: "http://radarr:7878" });
+    const key = textInput("", (v) => { f.api_key = v; }, { type: "password", placeholder: keyHint() });
     const go = btn("btn--primary", "Test and save", async () => {
       setDisabled(go, "Testing the connection…"); replace(err);
       try {

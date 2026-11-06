@@ -501,6 +501,17 @@ def safe_under_media_root(path, media_root=None):
     return resolved
 
 
+def url_origin(url):
+    """(scheme, host, port) of a URL, to tell whether two URLs reach the same server.
+    None if it cannot be parsed."""
+    try:
+        parts = urllib.parse.urlsplit(str(url or "").strip())
+        port = parts.port or {"http": 80, "https": 443}.get(parts.scheme)
+    except ValueError:
+        return None
+    return (parts.scheme.lower(), (parts.hostname or "").lower(), port)
+
+
 def validate_connections(connections, existing_connections=None):
     existing_by_id = {
         c.get("id"): c for c in (existing_connections or get_connections())
@@ -553,6 +564,13 @@ def validate_connections(connections, existing_connections=None):
             api_key = submitted_key
         else:
             api_key = str(existing.get("api_key", "") or "")
+            # A blank key means "keep the saved one", but the saved key must only
+            # ever be sent to the server it was saved for.
+            if api_key and url_origin(url) != url_origin(existing.get("url")):
+                raise ValueError(
+                    f"The URL for {name} points to a different server, so enter its "
+                    "API key again. The saved key is only sent to the server it was saved for."
+                )
 
         cleaned.append({
             "id": connection_id,
