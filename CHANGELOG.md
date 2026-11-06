@@ -1,5 +1,24 @@
 # Trailer Park — Changelog
 
+## [0.10.0](https://github.com/geebru/trailer-park/compare/v0.9.0...v0.10.0) (2026-11-06)
+
+
+### ✨ Features
+
+* **activity:** log Sync now checks, including failures ([#41](https://github.com/geebru/trailer-park/issues/41)) ([e6d3537](https://github.com/geebru/trailer-park/commit/e6d3537b75302d6204b667b1fccbae52050bb558))
+
+
+### 🐛 Bug fixes
+
+* **engine:** keep secrets out of logs, Activity and error text ([#56](https://github.com/geebru/trailer-park/issues/56)) ([14d6ea3](https://github.com/geebru/trailer-park/commit/14d6ea3eed5a88ebee04c3b94b7ab36b6c698a43)), closes [#50](https://github.com/geebru/trailer-park/issues/50)
+* **settings:** accept only Discord webhook URLs ([#55](https://github.com/geebru/trailer-park/issues/55)) ([1e49792](https://github.com/geebru/trailer-park/commit/1e49792ce554663b5d07606a16bc1216648cf903))
+
+
+### 📝 Documentation
+
+* add an AI disclaimer to the README ([#43](https://github.com/geebru/trailer-park/issues/43)) ([ce7d952](https://github.com/geebru/trailer-park/commit/ce7d9529a1091b2093747f8ebe105d9c76ef9aea))
+* add the MIT license and third-party notices ([#40](https://github.com/geebru/trailer-park/issues/40)) ([d4b3d6f](https://github.com/geebru/trailer-park/commit/d4b3d6f98181758cda88133c6b8c0adf9717d952))
+
 ## [0.9.0](https://github.com/geebru/trailer-park/compare/v0.8.0...v0.9.0) (2026-11-04)
 
 
