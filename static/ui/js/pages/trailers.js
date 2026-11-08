@@ -83,8 +83,10 @@ export function mount(container, { query, navigate }) {
     h("section", { class: "panel trailers", "aria-label": "Library" },
       h("div", { class: "trailers__bar" }, tabsEl,
         h("div", { class: "trailers__filters" }, h("label", { class: "search" }, icon("magnifying-glass"), searchEl), connEl, rootEl, viewEl)),
-      h("div", { class: "trailer-head", "aria-hidden": "true" }, h("span", {}, "Title"), h("span", {}, "Trailer"), h("span", {}, "Actions")),
-      listEl, footEl)));
+      h("div", { class: "trailer-table" },
+        h("div", { class: "trailer-head", "aria-hidden": "true" }, h("span", {}, "Title"), h("span", {}, "Trailer"), h("span", {}, "Actions")),
+        listEl),
+      footEl)));
   viewEl.value = state.view;
 
   /* ── Rendering ────────────────────────────────────────────────────── */

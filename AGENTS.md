@@ -17,6 +17,7 @@ HTML and CSS expert, comfortable enough in JS for design-system work, no hard to
 - Vanilla ES modules, `h()` element builder, client-side History router. No frameworks, no CSS frameworks, no CDN.
 - Direction, not started: the owner finds plain modules hard to work in and expects to move to Lit components with a build step (and likely eslint, stylelint and TypeScript). Until an issue says to migrate, keep the rules here; do not add Lit or a build step piecemeal. If asked to plan it, the Dockerfile, `.dockerignore` and axe flow need to change with it.
 - Style only through tokens in `css/tokens.css` (palette, then semantic layer). Theme is Moss (`data-theme`).
+- Layout: let content flow; where a component must switch layout, use a container query on its panel, not a viewport media query (the pinned sidebar takes 16rem from the viewport), and avoid hard widths.
 - Icons: Font Awesome Free SVGs in `js/icons.js`. Fonts are self-hosted.
 - Modals use native `<dialog>` (`dialog.js`). Filters live in the URL. Keep a11y clean (axe AA, visible focus).
 - A button that can be disabled uses `setDisabled(button, reason)` from `tip.js` (empty reason enables it), never the `disabled` attribute, so every disabled action explains itself on hover, focus and tap. Native `disabled` stays for form fields, with a visible hint.
