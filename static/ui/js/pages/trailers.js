@@ -83,8 +83,10 @@ export function mount(container, { query, navigate }) {
     h("section", { class: "panel trailers", "aria-label": "Library" },
       h("div", { class: "trailers__bar" }, tabsEl,
         h("div", { class: "trailers__filters" }, h("label", { class: "search" }, icon("magnifying-glass"), searchEl), connEl, rootEl, viewEl)),
-      h("div", { class: "trailer-head", "aria-hidden": "true" }, h("span", {}, "Title"), h("span", {}, "Trailer"), h("span", {}, "Actions")),
-      listEl, footEl)));
+      h("div", { class: "trailer-table" },
+        h("div", { class: "trailer-head", "aria-hidden": "true" }, h("span", {}, "Title"), h("span", {}, "Trailer"), h("span", {}, "Actions")),
+        listEl),
+      footEl)));
   viewEl.value = state.view;
 
   /* ── Rendering ────────────────────────────────────────────────────── */
@@ -159,9 +161,9 @@ export function mount(container, { query, navigate }) {
         h("div", { class: "trailer-row__meta" }, [item.year, item.connection_name].filter(Boolean).join(" · "))),
       h("div", { class: "trailer-row__file" }, missing
         ? h("span", { class: "flag tone-warning" }, icon("triangle-exclamation"), "No trailer file")
-        : [h("div", { class: "mono trailer-row__path" }, (item.primary_file || "").replace(/^trailers\//i, "")),
+        : [h("div", { class: "trailer-row__path" }, (item.primary_file || "").replace(/^trailers\//i, "")),
            h("div", { class: "trailer-row__flags" },
-             item.file_count === 1 && item.total_size ? h("span", { class: "mono muted" }, bytes(item.total_size)) : null,
+             item.file_count === 1 && item.total_size ? h("span", { class: "trailer-row__size" }, bytes(item.total_size)) : null,
              item.name_differs ? h("span", { class: "flag tone-warning" }, icon("triangle-exclamation"), "Name mismatch") : null,
              item.file_count > 1 ? h("span", { class: "flag tone-info" }, icon("circle-info"), `${item.file_count} files`) : null)]),
       h("div", { class: "trailer-row__actions" }, actionButtons(item)));

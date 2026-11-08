@@ -5,7 +5,7 @@ Downloads local trailers for your Radarr and Sonarr titles. It looks each title 
 > [!IMPORTANT]
 > **Built with AI.** Trailer Park is developed with heavy AI assistance. A human plans the work, reviews the changes and oversees the result, but much of the code and documentation is written by AI. If something looks wrong, please open an issue.
 
-Current release: **v0.9.0** <!-- x-release-please-version -->
+Current release: **v0.10.0** <!-- x-release-please-version -->
 
 [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [License](LICENSE)
 
@@ -48,6 +48,17 @@ The image is published for `linux/amd64` and `linux/arm64`. Tags are `X.Y.Z`, `X
 
 **User mapping.** `user:` takes `UID:GID`, for example `"1000:1000"`. Do not assume that is right for your server. The user must be able to read and write both the media folders used for trailers and the `/config` volume. On Unraid, `99:100` (`nobody:users`) is common, but use the IDs that match your share permissions.
 
+**Host names.** Trailer Park answers requests that reach it as `localhost`, by IP address, by a single-word name such as `gaming-pc`, or by a name ending in `.local`, `.lan` or `.home.arpa`. Any other name gets a `421` that says how to allow it. That includes your own domain, a reverse proxy name and Tailscale names (`*.ts.net`). To allow one, set `ALLOWED_HOSTS` to a comma-separated list (`*.example.com` matches every subdomain) and restart:
+
+```yaml
+    environment:
+      ALLOWED_HOSTS: "trailers.example.com,*.ts.net"
+```
+
+`/health` always answers, so Docker health checks work with any name.
+
+The container runs as root unless you set `user:`, and running it unprivileged is recommended (see Security). If you add `user:` to an install that already ran as root, `./config` still belongs to root and the app cannot save anything there: change it once, for example `sudo chown -R 1000:1000 config`, with the IDs you chose.
+
 ### Upgrade
 
 ```bash
@@ -62,6 +73,7 @@ To build from source instead, clone the repository, replace `image:` with `build
 ### Upgrading from an older version
 
 - **From Trailarr Parrk** (the project's former name): your `/config` volume and settings are unchanged. If you use the example compose file, rename the service and container to `trailer-park` and use the image above. Run `docker compose down` **before** you change the file, so the old `trailarr-parrk` container does not keep port 8080, then `docker compose up -d`. A compose file of your own can keep its old names. If you run the manual script from Radarr or Sonarr, point the connection at `scripts/trailer-park.sh` (it was `trailarr-parrk.sh`). Log lines are now prefixed `[trailer-park]`.
+- **From v0.9.x or older:** if you open Trailer Park by your own domain name, a reverse proxy name or a Tailscale name, it now answers `421` until you add that name to `ALLOWED_HOSTS` (see Host names under Install). Opening it by IP address, `localhost` or a short LAN name needs nothing.
 - **From v0.7.x:** keep the same `/config` volume. Connections and settings carry over. The old `libraries` list in `settings.json` is ignored, and old bookmarks such as `/library/movies` redirect to `/trailers`. Arr webhooks are gone: if you added one in Radarr or Sonarr, remove it under **Settings → Connect**, or the Arr will log 404 errors.
 
 ---
@@ -126,7 +138,7 @@ Settings are saved with **Save changes** (or **Discard**). Connections are saved
 | **Naming** | **Media folder** (default `/data/media`). **Trailer folder** (default `trailers`; leave blank to save beside the media file). **File name template** (default `{title} ({year}).trailer`; variables `{title}` and `{year}`). A live **Output preview**. |
 | **Scoring** | **Positive keywords** and **Negative keywords** (see below), and the **YouTube search fallback** (off by default). |
 | **TMDB** | Your TMDB Read Access Token, with **Test key**. |
-| **Downloads** | yt-dlp version and updates. **Resolution** (maximum: 480p, 720p, **1080p**, 4K), **Output container** (**mkv** or mp4; mp4 prefers H.264 so files play on more devices) and **Concurrent downloads** (**1** to 4). Changes only affect new downloads. |
+| **Downloads** | yt-dlp version and updates, and whether the [cookies file](#yt-dlp) is in use. **Resolution** (maximum: 480p, 720p, **1080p**, 4K), **Output container** (**mkv** or mp4; mp4 prefers H.264 so files play on more devices) and **Concurrent downloads** (**1** to 4). Changes only affect new downloads. |
 | **Automation** | **Sync interval** (Off, **5**, 10, 15, 30 minutes, 1, 6 or 24 hours), **Only grab monitored titles** (off by default), **Sync now**, and **Activity retention** (60, **90** or 180 days, 1 year, or forever). |
 | **Notifications** | An optional Discord webhook URL (only `https://discord.com/api/webhooks/...` addresses are accepted) with **Send test** (a successful test saves it), and toggles for **Trailer downloaded** and **Grab failed** (both on by default). Batches and Sync now send one summary instead of one message per title. |
 
@@ -164,6 +176,8 @@ Downloads go to a temporary file and replace an existing trailer only after they
 ## yt-dlp
 
 **Settings → Downloads** shows the active yt-dlp version and whether a newer one is available. Trailer Park checks the official yt-dlp releases about once a day, but never installs automatically. **Update** downloads the official release file, verifies it against the release `SHA2-256SUMS`, and stores it at `/config/bin/yt-dlp`. That copy is used immediately and after the container is recreated. The version bundled in the image stays as the fallback.
+
+**Age-restricted or region-gated videos.** Some trailers cannot be downloaded without a signed-in YouTube session. To give yt-dlp one, export your YouTube cookies in Netscape format (a browser extension such as "Get cookies.txt LOCALLY" does this) and save them as `cookies.txt` in your `/config` volume. When the file exists, Trailer Park passes it to yt-dlp for downloads and searches; without it nothing changes. There is no setting: **Settings → Downloads** shows the path and whether the file is in use, and the contents are never shown or logged. Each download works on a private temporary copy, so the file can be mounted read-only and yt-dlp never rewrites it. If the file exists but cannot be read, downloads fail with a message saying so. Cookies from your own account can get it flagged by YouTube, so a throwaway account is safer.
 
 ---
 
@@ -220,6 +234,7 @@ The `/config` volume holds the app's state. Do not commit it to a public reposit
 | `watch-state.json` | What the watcher has already seen |
 | `ytdlp-status.json` | The last yt-dlp update check |
 | `bin/yt-dlp` | The updated yt-dlp copy, only after an in-app update |
+| `cookies.txt` | Optional YouTube cookies for yt-dlp (you add it; see [yt-dlp](#yt-dlp)) |
 | `download-slots/` | Lock files for the concurrent download limit |
 
 Every setting also has an environment variable that gives it its initial value: the setting's name in capitals, such as `TMDB_API_KEY`, `MEDIA_ROOT`, `VIDEO_QUALITY`, `WATCH_INTERVAL_MINUTES`, `SEASON_FALLBACK`, `YOUTUBE_SEARCH` or `ONLY_MONITORED`. Once settings have been saved they live in `settings.json` and that file wins, so use the interface after the first save.
@@ -230,7 +245,11 @@ Every setting also has an environment variable that gives it its initial value: 
 
 **No login.** Trailer Park has no authentication of its own (a login is tracked in [#15](https://github.com/geebru/trailer-park/issues/15)). Anyone who can reach its port can change settings, start grabs and delete the trailers it manages. Keep it on a trusted network and off the public internet. If you need it from outside your LAN, use a VPN, or a reverse proxy that authenticates before it forwards a request.
 
+**Host names.** A request is refused unless it reaches the app by an expected name (`ALLOWED_HOSTS`, see Install). That stops a web page on another site from pointing its own domain at your server and driving the API through your browser (DNS rebinding). It does not replace a login.
+
 **The config directory is sensitive.** `/config/settings.json` holds your TMDB token, the Discord webhook URL and the Radarr and Sonarr API keys in plain text, readable only by its owner, as the Arrs do with theirs. The app never returns or logs them, but a copy of the directory exposes every key. Keep backups private and never post it in an issue.
+
+**Run it unprivileged.** The container runs as root unless you set `user:`. yt-dlp and ffmpeg handle data from the internet, so a flaw in either would get the whole container. Set `user:` to an ID that can write `/config` and your media folders (see User mapping under Install). The image works the same either way.
 
 **Reporting a vulnerability.** See [SECURITY.md](SECURITY.md).
 

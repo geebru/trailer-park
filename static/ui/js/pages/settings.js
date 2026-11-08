@@ -276,7 +276,7 @@ export function mount(container, { query, navigate }) {
 
   /* ── Downloads / yt-dlp ──────────────────────────────────────────── */
   function downloads() {
-    const statusEl = h("div", {});
+    const statusEl = h("div", { class: "stack" });
     const paintYt = () => {
       if (!ytdlp) { replace(statusEl, h("p", { class: "muted" }, "Loading…")); return; }
       const stateChip = ytdlp.up_to_date ? h("span", { class: "status status--success" }, "Up to date") : ytdlp.latest ? h("span", { class: "status status--warning" }, `${ytdlp.latest} available`) : null;
@@ -289,7 +289,21 @@ export function mount(container, { query, navigate }) {
             h("div", { class: "hint mono" }, `version ${ytdlp.active || "unknown"}${ytdlp.using_override ? " (updated copy)" : ""}`),
             ytdlp.last_checked ? h("div", { class: "hint" }, `Checked ${timeAgo(ytdlp.last_checked)} ago`) : null)),
         h("div", { class: "row-gap" }, check, upd)),
-        ytdlp.last_error ? h("p", { class: "hint tone-warning" }, `Last check failed: ${ytdlp.last_error}`) : null));
+        ytdlp.last_error ? h("p", { class: "hint tone-warning" }, `Last check failed: ${ytdlp.last_error}`) : null),
+        cookiesCard(ytdlp.cookies));
+    };
+    /* Read-only: the file is picked up by name, so there is nothing to set here. */
+    const cookiesCard = (c) => {
+      if (!c) return null;
+      const chip = c.state === "ok" ? h("span", { class: "status status--success" }, "In use")
+        : c.state === "unreadable" ? h("span", { class: "status status--danger" }, "Unreadable")
+        : h("span", { class: "status" }, "Not found");
+      const hint = c.state === "unreadable" ? "Something is at this path but it is not a file Trailer Park can read (wrong permissions, or a folder), so downloads fail until it is fixed or removed."
+        : c.state === "ok" ? "Passed to yt-dlp for downloads and searches. The contents are never shown or logged."
+        : "Optional. Put a Netscape-format cookies.txt at this path to download age-restricted or region-gated videos.";
+      return card(h("div", { class: "row-gap" }, h("div", { class: "file__icon" }, icon("folder")),
+        h("div", {}, h("div", { class: "row-gap" }, h("span", { class: "card__title" }, "Cookies file"), chip),
+          h("div", { class: "hint mono" }, c.path), h("div", { class: "hint" }, hint))));
     };
     if (!ytdlp) api.get("/yt-dlp").then((r) => { ytdlp = r; if (!stopped && section === "ytdlp") paintYt(); }).catch(() => {});
     paintYt();
