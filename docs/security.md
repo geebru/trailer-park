@@ -8,7 +8,7 @@
 
 **The config directory is sensitive.** `/config/settings.json` holds your TMDB token, the Discord webhook URL and the Radarr and Sonarr API keys in plain text, readable only by its owner, as the Arrs do with theirs. The app never returns or logs them, but a copy of the directory exposes every key. Keep backups private and never post it in an issue.
 
-**Run it unprivileged.** The container runs as root unless you set `user:`. yt-dlp and ffmpeg handle data from the internet, so a flaw in either would get the whole container. Set `user:` to an ID that can write `/config` and your media folders (see User mapping under [Install](../README.md#install)). The image works the same either way.
+**Run it unprivileged.** The container runs as root unless you set `user:`. yt-dlp and ffmpeg handle data from the internet, so a flaw in either would get the whole container. Set `user:` to an ID that can write `/config` and your media folders (see [Install](../README.md#install)). The image works the same either way.
 
 **Reporting a vulnerability.** See [SECURITY.md](../SECURITY.md).
 
