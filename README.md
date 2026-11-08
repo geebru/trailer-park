@@ -9,16 +9,25 @@ Current release: **v0.10.0** <!-- x-release-please-version -->
 
 [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [License](LICENSE)
 
-## What it does
+![The Trailers page: every movie with its trailer file or a Grab button, filters above the list](docs/images/trailers.png)
 
-- Connects to any number of Radarr and Sonarr instances. Each title appears once, under **Movies** or **Shows**.
-- Shows which titles have no trailer, whatever a trailer file is called and wherever it sits.
-- Grabs a trailer for one title, for every missing title at once, or automatically when new titles arrive.
-- Replaces, renames, keeps or deletes trailer files. It only ever touches files it recognizes as trailers, never the media itself.
-- Live download logs, a persistent activity log, and optional Discord notifications.
-- Updates yt-dlp from inside the app.
+<details>
+<summary>More screenshots</summary>
 
----
+![The Overview page: total titles, missing trailers, coverage and recent activity](docs/images/overview.png)
+
+![The Settings page: connections to Radarr and Sonarr](docs/images/settings.png)
+
+</details>
+
+## Features
+
+- **Radarr and Sonarr.** Connects to any number of instances. Each title appears once, under **Movies** or **Shows**.
+- **Finds what is missing.** A title has a trailer whatever the file is called and wherever it sits, so existing trailers are never grabbed twice.
+- **Grabs trailers your way.** One title, a hand-picked selection, every missing title at once, or automatically when new titles arrive. TMDB picks the trailer, scored by keywords you can change ([how](docs/trailer-selection.md)). Or give it a YouTube link.
+- **Manages trailer files.** Replace, rename, keep one or delete. It only touches files it recognizes as trailers, never the media itself, and an old trailer is removed only after its replacement downloaded.
+- **Stays visible.** Live download logs, a persistent activity log and optional Discord notifications.
+- **Keeps yt-dlp current** from inside the app.
 
 ## Install
 
@@ -42,11 +51,11 @@ Then start it and open `http://SERVER-IP:8080`:
 docker compose up -d
 ```
 
-The image is published for `linux/amd64` and `linux/arm64`. Tags are `X.Y.Z`, `X.Y` and `latest` (from 1.0 also `X`). `latest` is the newest release; pin a version tag such as `0.9.0` if you want to choose when to upgrade.
+The image is published for `linux/amd64` and `linux/arm64`. Tags are `X.Y.Z`, `X.Y` and `latest` (from 1.0 also `X`). `latest` is the newest release; pin a full version tag (`X.Y.Z`) if you want to choose when to upgrade. To upgrade, run `docker compose pull` and `docker compose up -d` with the same `/config` volume (more in [Upgrading](docs/upgrading.md)).
 
 **Media paths must match.** Trailer Park uses the folder paths your Radarr and Sonarr report, so your media has to be visible inside this container at the same path the Arrs see. If Radarr says `/data/media/movies/Dune (2021)`, mount the same media at `/data/media`. The **Media folder** setting is the top-level folder those paths must sit under (default `/data/media`). Path mapping between the Arrs and Trailer Park is not supported yet.
 
-**User mapping.** `user:` takes `UID:GID`, for example `"1000:1000"`. Do not assume that is right for your server. The user must be able to read and write both the media folders used for trailers and the `/config` volume. On Unraid, `99:100` (`nobody:users`) is common, but use the IDs that match your share permissions.
+**Run it as a normal user.** Add `user: "UID:GID"` (for example `"1000:1000"`) with IDs that can read and write your media folders and the `/config` volume. On Unraid, `99:100` is common. The container runs as root without it, which works but is not recommended ([why](docs/security.md)). If you add `user:` to an install that already ran as root, change the owner of `./config` once, for example `sudo chown -R 1000:1000 config`.
 
 **Host names.** Trailer Park answers requests that reach it as `localhost`, by IP address, by a single-word name such as `gaming-pc`, or by a name ending in `.local`, `.lan` or `.home.arpa`. Any other name gets a `421` that says how to allow it. That includes your own domain, a reverse proxy name and Tailscale names (`*.ts.net`). To allow one, set `ALLOWED_HOSTS` to a comma-separated list (`*.example.com` matches every subdomain) and restart:
 
@@ -57,26 +66,8 @@ The image is published for `linux/amd64` and `linux/arm64`. Tags are `X.Y.Z`, `X
 
 `/health` always answers, so Docker health checks work with any name.
 
-The container runs as root unless you set `user:`, and running it unprivileged is recommended (see Security). If you add `user:` to an install that already ran as root, `./config` still belongs to root and the app cannot save anything there: change it once, for example `sudo chown -R 1000:1000 config`, with the IDs you chose.
-
-### Upgrade
-
-```bash
-docker compose pull
-docker compose up -d
-```
-
-Keep the same `/config` volume across upgrades. Before a major upgrade, back up `config/settings.json`.
-
-To build from source instead, clone the repository, replace `image:` with `build: .` in your compose file, and use `docker compose up -d --build` (after `git pull` to upgrade).
-
-### Upgrading from an older version
-
-- **From Trailarr Parrk** (the project's former name): your `/config` volume and settings are unchanged. If you use the example compose file, rename the service and container to `trailer-park` and use the image above. Run `docker compose down` **before** you change the file, so the old `trailarr-parrk` container does not keep port 8080, then `docker compose up -d`. A compose file of your own can keep its old names. If you run the manual script from Radarr or Sonarr, point the connection at `scripts/trailer-park.sh` (it was `trailarr-parrk.sh`). Log lines are now prefixed `[trailer-park]`.
-- **From v0.9.x or older:** if you open Trailer Park by your own domain name, a reverse proxy name or a Tailscale name, it now answers `421` until you add that name to `ALLOWED_HOSTS` (see Host names under Install). Opening it by IP address, `localhost` or a short LAN name needs nothing.
-- **From v0.7.x:** keep the same `/config` volume. Connections and settings carry over. The old `libraries` list in `settings.json` is ignored, and old bookmarks such as `/library/movies` redirect to `/trailers`. Arr webhooks are gone: if you added one in Radarr or Sonarr, remove it under **Settings → Connect**, or the Arr will log 404 errors.
-
----
+> [!WARNING]
+> Trailer Park has **no login**. Anyone who can reach its port can change settings and delete the trailers it manages. Keep it on a trusted network, or behind a VPN or an authenticating reverse proxy. See [Security](docs/security.md).
 
 ## First run
 
@@ -86,180 +77,15 @@ To build from source instead, clone the repository, replace `image:` with `build
 4. Open **Trailers**, find a title in the Missing view and press **Grab**. Or press **Grab N missing** to do them all.
 5. **Settings → Automation:** the default **Sync interval** is 5 minutes, so new imports are grabbed automatically from then on.
 
----
+## Documentation
 
-## Using the app
-
-### Overview
-
-Total titles, how many have no trailer (with a **Review** link to the Missing view), coverage as a percentage (ignored titles are left out of both), and your most recent activity. The sidebar on every page shows each service's connection state, the next sync, and any running downloads or batch.
-
-### Trailers
-
-**Movies** and **Shows** tabs list every title. Search by name, and filter by connection, media folder, and **All titles / Available / Missing / Name mismatch / Multiple found**. The filters and page live in the address, so you can bookmark a view such as `/trailers?status=missing`.
-
-**What counts as a trailer.** A title has a trailer when its media folder contains **any** trailer file, whatever it is called:
-
-- any video file (`.mkv`, `.mp4`, `.m4v`, `.avi`, `.mov`, `.webm`) inside a `trailers` or `trailer` subfolder (any capitalization) or your configured trailer folder
-- a video file in the media folder itself whose name ends in `trailer`, such as `-trailer.mkv`, `.trailer.mkv`, `Title trailer.mp4` or `trailer.mkv` (files over 2 GB are ignored there, so a main movie is never mistaken for a trailer)
-
-Changing the folder or file name settings never moves a title between Missing and Available.
-
-**Missing** lists titles with no trailer file at all. Radarr movies appear once the movie file exists, Sonarr series once their series folder exists.
-
-- **Grab** lets TMDB choose the best trailer. **Manual** uses a YouTube link or ID you give it.
-- **Ignore** is for titles you do not want a trailer for (shorts, kids' shows). An ignored title leaves Missing, its count, **Grab N missing** and the automatic grabs, and shows as **Ignored** under All titles, where **Grab** and **Manual** still work. Un-ignore it under **Settings → Ignored**. Once a title has a trailer the ignore is dropped.
-- **Grab N missing** (top right) grabs every missing title in the current tab and connection filter, one after another, after a confirmation. Progress and **Cancel batch** are in the sidebar.
-- **Select** titles with the checkboxes (or **Select all on this page**; filter to Missing first to pick only those), then **Grab N selected** grabs them as one batch, with no job dialog. If the selection includes titles that already have a trailer, a confirmation asks whether to **Grab missing only** or **Grab all**, which replaces those trailers (the old files are deleted once the new download succeeds). Select all skips ignored titles; one you tick by hand is still grabbed, as are unmonitored ones. The selection survives paging and is cleared when you change a filter.
-
-**Available** lists titles that have a trailer, marked **Name mismatch** (the file does not match your naming template) and/or **Multiple found** (several trailer files; allowed, not an error).
-
-- **Replace** downloads a new trailer. The old files are removed only if the new download succeeds. **Manual** replaces with a specific YouTube link or ID.
-- **Files** opens per-file **Rename** (to the current naming, keeps the extension, never overwrites), **Keep only this** (deletes the others) and **Delete**.
-- **Rename N** (top right) renames every flagged single-file title in the current tab and connection. A dry run shows what is ready or blocked first, and titles with several files are skipped.
-
-Trailer Park stores metadata for trailers it downloads (TMDB video name, YouTube ID, language, score, time, source). Renames keep that metadata. Trailers it did not download show as **Found on disk**.
-
-A download opens a live log with progress. **Run in background** closes it without stopping anything; **Cancel** stops the download and removes partial files.
-
-**Batches.** Only one batch runs at a time. Each title in it is a normal download, so you can open any running one from the sidebar. **Cancel batch** stops further titles from starting; downloads already running finish safely. When a batch ends, one summary goes to Discord (if enabled) and the batch is recorded in Activity.
-
-### Activity
-
-A paged log of what happened: trailers downloaded (including manual ones), no suitable match found, failed downloads, renames, removed files, ignored and un-ignored titles, batches finished or cancelled, yt-dlp updates, maintenance, and one entry per connection each time you press **Sync now** (so a check that found nothing, or failed, is still visible; the scheduled checks are not logged). Entries older than the retention period are removed automatically.
-
----
-
-## Settings
-
-Settings are saved with **Save changes** (or **Discard**). Connections are saved as you add them. The sections are grouped under **Setup** (how the app is configured) and **Library** (what you have decided about your titles, currently **Ignored**). Un-ignoring applies at once.
-
-| Section | What it controls |
-|---|---|
-| **Connections** | Radarr and Sonarr instances: name, type, base URL (no username or password in it), API key. Editing a connection keeps its saved key unless you point it at a different server, which needs the key entered again. Radarr connections feed Movies, Sonarr connections feed Shows. |
-| **Naming** | **Media folder** (default `/data/media`). **Trailer folder** (default `trailers`; leave blank to save beside the media file). **File name template** (default `{title} ({year}).trailer`; variables `{title}` and `{year}`). A live **Output preview**. |
-| **Behavior** | **Positive keywords** and **Negative keywords** (see below), the **TV season fallback** (see below), and the **YouTube search fallback** (off by default). |
-| **TMDB** | Your TMDB Read Access Token, with **Test key**. |
-| **Downloads** | yt-dlp version and updates, and whether the [cookies file](#yt-dlp) is in use. **Resolution** (maximum: 480p, 720p, **1080p**, 4K), **Output container** (**mkv** or mp4; mp4 prefers H.264 so files play on more devices) and **Concurrent downloads** (**1** to 4). Changes only affect new downloads. |
-| **Automation** | **Sync interval** (Off, **5**, 10, 15, 30 minutes, 1, 6 or 24 hours) with the **Next sync** time and **Sync now**, **Only grab monitored titles** (off by default), and **Activity retention** (60, **90** or 180 days, 1 year, or forever). |
-| **Notifications** | An optional Discord webhook URL (only `https://discord.com/api/webhooks/...` addresses are accepted) with **Send test** (a successful test saves it), and toggles for **Trailer downloaded** and **Grab failed** (both on by default). Batches and Sync now send one summary instead of one message per title. |
-| **Ignored** | The titles you chose to ignore, each with **Un-ignore**. |
-
-**Automatic grabs** come from a watcher that polls each connection's API at the sync interval (Off turns automatic grabs off). Radarr grabs on import and upgrade. Sonarr grabs when a series is added, and if its folder does not exist yet it waits (up to 30 days). The first check of a connection only records a baseline, so use **Grab N missing** for titles that were already there. **Sync now** runs a check immediately. Existing trailers are kept on upgrades and on later episode imports. With **Only grab monitored titles** on, the watcher and **Grab N missing** skip titles that Radarr or Sonarr has unmonitored; they stay in Trailers and can still be grabbed one at a time or by selecting them.
-
-The download limit applies across the web interface, batches, the watcher and the command line.
-
----
-
-## How a trailer is chosen
-
-1. Trailer Park asks TMDB for the title's videos (English, the title's original language, and untagged ones) and keeps YouTube trailers and teasers.
-2. A video whose name contains a **negative keyword** is rejected outright. Defaults: `fan made, fan-made, reaction, parody, review, recut, behind the scenes, featurette`.
-3. The rest are scored with the **positive keywords**. Defaults: `official, trailer, teaser, theatrical, season 1, season 01, announcement`.
-
-   | Keyword | Matches | Points |
-   |---|---|---|
-   | `official` | TMDB's official flag, or the word in the video name | +10 |
-   | `trailer` | TMDB's type is Trailer (the video name is not used) | +10 |
-   | `teaser` | TMDB's type is Teaser | +5 |
-   | any other keyword | the video name contains it, ignoring case (a keyword ending in a digit does not match a longer number, so `season 1` does not match `season 10`) | +10 |
-
-   An official trailer therefore scores 20 and an official teaser 15. A video must score above 0 to be considered.
-4. Candidates are ordered spoiler-free first (for shows, a title naming a later season or a "final season" sorts behind the rest, but stays usable if nothing else exists), then by score, then full trailers over teasers, then official, then English.
-5. The best candidate is downloaded. If YouTube says it is unavailable (removed, private, region-blocked, age-restricted, members-only), the next candidate is tried, up to five.
-
-**Shows with no show-level trailer** fall back to season trailers. `first` (the default) tries season 1, then season 2. `latest` tries the latest season, the one before it, then season 1. `off` tries none. It is used only when TMDB lists no show-level trailer, makes at most three lookups and skips specials. Change it under Settings → Behavior → **TV season fallback**, or set `SEASON_FALLBACK` (`first`, `latest` or `off`) for the first start. A trailer taken from a season is noted in Activity ("trailer from season 2 of the show").
-
-**YouTube search fallback** (Settings → Behavior, off by default). When TMDB has no usable trailer, or every TMDB trailer is unavailable, Trailer Park searches YouTube for `<title> <year> trailer` (top 15 results, metadata only) and scores the results with the same keywords. A title containing the right year ranks first, which separates an original from a remake with the same name.
-
-Downloads go to a temporary file and replace an existing trailer only after they succeed.
-
----
-
-## yt-dlp
-
-**Settings → Downloads** shows the active yt-dlp version and whether a newer one is available. Trailer Park checks the official yt-dlp releases about once a day, but never installs automatically. **Update** downloads the official release file, verifies it against the release `SHA2-256SUMS`, and stores it at `/config/bin/yt-dlp`. That copy is used immediately and after the container is recreated. The version bundled in the image stays as the fallback.
-
-**Age-restricted or region-gated videos.** Some trailers cannot be downloaded without a signed-in YouTube session. To give yt-dlp one, export your YouTube cookies in Netscape format (a browser extension such as "Get cookies.txt LOCALLY" does this) and save them as `cookies.txt` in your `/config` volume. When the file exists, Trailer Park passes it to yt-dlp for downloads and searches; without it nothing changes. There is no setting: **Settings → Downloads** shows the path and whether the file is in use, and the contents are never shown or logged. Each download works on a private temporary copy, so the file can be mounted read-only and yt-dlp never rewrites it. If the file exists but cannot be read, downloads fail with a message saying so. Cookies from your own account can get it flagged by YouTube, so a throwaway account is safer.
-
----
-
-## Command line and script
-
-The CLI runs as a separate short-lived process inside the running container. It reads `/config/settings.json` on its own, and shares the download limit with the app:
-
-```bash
-docker exec trailer-park python /app/app.py \
-  --yt-id dUKFnBqlVSI \
-  --title "Parasite" \
-  --year 2019 \
-  --output "/data/media/movies/Parasite (2019)" \
-  --dry-run
-```
-
-Use `--tmdb-id 496243 --type movie` (or `--type tv`) instead of `--yt-id` to let TMDB choose. Drop `--dry-run` to download. `--output` defaults to the media folder.
-
-`scripts/trailer-park.sh` is a standalone alternative that runs inside the Radarr or Sonarr container as a custom script (Settings → Connect → Custom Script; Radarr events On Import and On Upgrade, Sonarr event On Series Add). It has its own settings at the top of the file and does not use the web interface.
-
----
-
-## API
-
-The interface is a client of a JSON API under `/api`, with no authentication. `GET /health` returns the status, version and yt-dlp version.
-
-- Requests that change something need `Content-Type: application/json` (otherwise 415). Errors look like `{"error": {"code": "...", "message": "..."}}`.
-- Long actions (grab, replace, batches) return 202 with a job, which you poll with `GET /api/jobs/<id>?after=<seq>`. Only one job can be active per title (409 `job_active`).
-- Titles are addressed as `/api/items/<connection_id>/<item_id>`.
-- Secrets (the TMDB token, the Discord webhook) are never returned, only whether they are configured. An Arr connection keeps its saved API key when you leave it blank, but only while its URL points to the same server (scheme, host and port); a different server needs the key again (`400`).
-
-| Area | Endpoints |
-|---|---|
-| Titles | `GET /api/items`, `GET /api/items/<connection>/<id>`, `POST /api/library/refresh` |
-| Grab, replace, manual | `POST /api/items/<connection>/<id>/grab` (send `{"replace": true}` to replace), `POST .../force` (a specific YouTube link or ID) |
-| Files | `POST /api/items/<connection>/<id>/files/rename`, `.../keep`, `.../delete`, `POST /api/items/rename-all` |
-| Jobs and batches | `GET /api/jobs`, `GET /api/jobs/<id>`, `POST /api/jobs/<id>/cancel`, `POST /api/batches` (a scope, or `{"items": [{"connection", "id", "replace"?}]}` for a selection: missing titles are grabbed, titles with a trailer only when `replace` is true), `GET /api/batches/current`, `POST /api/batches/current/cancel` |
-| Sync | `POST /api/watcher/run` |
-| Overview and activity | `GET /api/overview`, `GET /api/activity`, `POST /api/activity/clear` |
-| Settings | `GET` and `PUT /api/settings`, `POST /api/settings/test/<service>`, `POST /api/settings/naming-preview`, `POST /api/connections/test` |
-| yt-dlp | `GET /api/yt-dlp`, `POST /api/yt-dlp/check`, `POST /api/yt-dlp/update` |
-
----
-
-## Files and environment
-
-The `/config` volume holds the app's state. Do not commit it to a public repository.
-
-| File | What it holds |
-|---|---|
-| `settings.json` | Settings, connections, and secrets (readable only by its owner) |
-| `activity.jsonl` | The Activity log |
-| `trailers.json` | Metadata for trailers Trailer Park downloaded |
-| `watch-state.json` | What the watcher has already seen |
-| `ignored.json` | Titles you ignored, so they are not counted as missing |
-| `ytdlp-status.json` | The last yt-dlp update check |
-| `bin/yt-dlp` | The updated yt-dlp copy, only after an in-app update |
-| `cookies.txt` | Optional YouTube cookies for yt-dlp (you add it; see [yt-dlp](#yt-dlp)) |
-| `download-slots/` | Lock files for the concurrent download limit |
-
-Every setting also has an environment variable that gives it its initial value: the setting's name in capitals, such as `TMDB_API_KEY`, `MEDIA_ROOT`, `VIDEO_QUALITY`, `WATCH_INTERVAL_MINUTES`, `SEASON_FALLBACK`, `YOUTUBE_SEARCH` or `ONLY_MONITORED`. Once settings have been saved they live in `settings.json` and that file wins, so use the interface after the first save.
-
----
-
-## Security
-
-**No login.** Trailer Park has no authentication of its own (a login is tracked in [#15](https://github.com/geebru/trailer-park/issues/15)). Anyone who can reach its port can change settings, start grabs and delete the trailers it manages. Keep it on a trusted network and off the public internet. If you need it from outside your LAN, use a VPN, or a reverse proxy that authenticates before it forwards a request.
-
-**Host names.** A request is refused unless it reaches the app by an expected name (`ALLOWED_HOSTS`, see Install). That stops a web page on another site from pointing its own domain at your server and driving the API through your browser (DNS rebinding). It does not replace a login.
-
-**The config directory is sensitive.** `/config/settings.json` holds your TMDB token, the Discord webhook URL and the Radarr and Sonarr API keys in plain text, readable only by its owner, as the Arrs do with theirs. The app never returns or logs them, but a copy of the directory exposes every key. Keep backups private and never post it in an issue.
-
-**Run it unprivileged.** The container runs as root unless you set `user:`. yt-dlp and ffmpeg handle data from the internet, so a flaw in either would get the whole container. Set `user:` to an ID that can write `/config` and your media folders (see User mapping under Install). The image works the same either way.
-
-**Reporting a vulnerability.** See [SECURITY.md](SECURITY.md).
-
-Every response carries `Content-Security-Policy` (the interface loads only from its own origin and cannot be put in a frame), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and `X-Frame-Options: DENY`. If you run it behind a reverse proxy, let these headers through.
-
----
+- [Using the app](docs/using.md): Overview, Trailers (what counts as a trailer, grabbing, batches, files) and Activity.
+- [Settings](docs/settings.md): every section, automatic grabs, the files in `/config` and environment variables.
+- [How a trailer is chosen](docs/trailer-selection.md): keyword scoring, fallbacks, and yt-dlp updates and cookies.
+- [Command line, script and API](docs/cli-and-api.md)
+- [Security](docs/security.md) and [reporting a vulnerability](SECURITY.md)
+- [Upgrading](docs/upgrading.md), including from Trailarr Parrk
+- [Contributing](CONTRIBUTING.md)
 
 ## License
 
