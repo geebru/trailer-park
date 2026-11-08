@@ -3,6 +3,8 @@ services:
     image: ghcr.io/geebru/trailer-park:latest
     container_name: trailer-park
     # user: "1000:1000"
+    # environment:
+    #   ALLOWED_HOSTS: "trailers.example.com"   # only if you open the app by your own domain name
     networks:
       - media-network
     volumes:

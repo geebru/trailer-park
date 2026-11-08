@@ -17,6 +17,7 @@ HTML and CSS expert, comfortable enough in JS for design-system work, no hard to
 - Vanilla ES modules, `h()` element builder, client-side History router. No frameworks, no CSS frameworks, no CDN.
 - Direction, not started: the owner finds plain modules hard to work in and expects to move to Lit components with a build step (and likely eslint, stylelint and TypeScript). Until an issue says to migrate, keep the rules here; do not add Lit or a build step piecemeal. If asked to plan it, the Dockerfile, `.dockerignore` and axe flow need to change with it.
 - Style only through tokens in `css/tokens.css` (palette, then semantic layer). Theme is Moss (`data-theme`).
+- Layout: let content flow; where a component must switch layout, use a container query on its panel, not a viewport media query (the pinned sidebar takes 16rem from the viewport), and avoid hard widths.
 - Icons: Font Awesome Free SVGs in `js/icons.js`. Fonts are self-hosted.
 - Modals use native `<dialog>` (`dialog.js`). Filters live in the URL. Keep a11y clean (axe AA, visible focus).
 - `app.py` sends a strict Content-Security-Policy on every response: no inline `<script>`, `<style>` or `style=` attributes, no `eval`, nothing from another origin. Use classes, or `el.style.x = …` (allowed). Loading from a new origin means changing the policy on purpose, in `SECURITY_HEADERS`.
@@ -27,6 +28,7 @@ HTML and CSS expert, comfortable enough in JS for design-system work, no hard to
 - Mutating requests need `Content-Type: application/json` (else 415). Errors: `{"error":{"code","message"}}`.
 - Long actions return 202 `{"job":{...}}`; poll `GET /api/jobs/<id>?after=<seq>`. One active job per item (409 `job_active`).
 - Items are addressed `/api/items/<connection_id>/<item_id>`. No library IDs; each connection is one synthetic library.
+- A request whose `Host` header is not an expected name gets 421 (`host_allowed` in `engine.py`, hooked in `app.py`; `/health` is exempt). Defaults cover `localhost`, IPs, single-label and `.local`/`.lan`/`.home.arpa` names; `ALLOWED_HOSTS` adds more. Do not trust `X-Forwarded-Host`.
 - Secrets (TMDB key, Discord webhook) are never returned, only `configured` flags. Settings PUT is partial; `clear_<key>: true` clears a secret. A blank Arr `api_key` keeps the saved one only while the URL points to the same server (scheme, host, port); otherwise it is a 400.
 
 ## Behavior to keep

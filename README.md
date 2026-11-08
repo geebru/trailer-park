@@ -48,6 +48,15 @@ The image is published for `linux/amd64` and `linux/arm64`. Tags are `X.Y.Z`, `X
 
 **User mapping.** `user:` takes `UID:GID`, for example `"1000:1000"`. Do not assume that is right for your server. The user must be able to read and write both the media folders used for trailers and the `/config` volume. On Unraid, `99:100` (`nobody:users`) is common, but use the IDs that match your share permissions.
 
+**Host names.** Trailer Park answers requests that reach it as `localhost`, by IP address, by a single-word name such as `gaming-pc`, or by a name ending in `.local`, `.lan` or `.home.arpa`. Any other name gets a `421` that says how to allow it. That includes your own domain, a reverse proxy name and Tailscale names (`*.ts.net`). To allow one, set `ALLOWED_HOSTS` to a comma-separated list (`*.example.com` matches every subdomain) and restart:
+
+```yaml
+    environment:
+      ALLOWED_HOSTS: "trailers.example.com,*.ts.net"
+```
+
+`/health` always answers, so Docker health checks work with any name.
+
 The container runs as root unless you set `user:`, and running it unprivileged is recommended (see Security). If you add `user:` to an install that already ran as root, `./config` still belongs to root and the app cannot save anything there: change it once, for example `sudo chown -R 1000:1000 config`, with the IDs you chose.
 
 ### Upgrade
@@ -64,6 +73,7 @@ To build from source instead, clone the repository, replace `image:` with `build
 ### Upgrading from an older version
 
 - **From Trailarr Parrk** (the project's former name): your `/config` volume and settings are unchanged. If you use the example compose file, rename the service and container to `trailer-park` and use the image above. Run `docker compose down` **before** you change the file, so the old `trailarr-parrk` container does not keep port 8080, then `docker compose up -d`. A compose file of your own can keep its old names. If you run the manual script from Radarr or Sonarr, point the connection at `scripts/trailer-park.sh` (it was `trailarr-parrk.sh`). Log lines are now prefixed `[trailer-park]`.
+- **From v0.9.x or older:** if you open Trailer Park by your own domain name, a reverse proxy name or a Tailscale name, it now answers `421` until you add that name to `ALLOWED_HOSTS` (see Host names under Install). Opening it by IP address, `localhost` or a short LAN name needs nothing.
 - **From v0.7.x:** keep the same `/config` volume. Connections and settings carry over. The old `libraries` list in `settings.json` is ignored, and old bookmarks such as `/library/movies` redirect to `/trailers`. Arr webhooks are gone: if you added one in Radarr or Sonarr, remove it under **Settings → Connect**, or the Arr will log 404 errors.
 
 ---
@@ -231,6 +241,8 @@ Every setting also has an environment variable that gives it its initial value: 
 ## Security
 
 **No login.** Trailer Park has no authentication of its own (a login is tracked in [#15](https://github.com/geebru/trailer-park/issues/15)). Anyone who can reach its port can change settings, start grabs and delete the trailers it manages. Keep it on a trusted network and off the public internet. If you need it from outside your LAN, use a VPN, or a reverse proxy that authenticates before it forwards a request.
+
+**Host names.** A request is refused unless it reaches the app by an expected name (`ALLOWED_HOSTS`, see Install). That stops a web page on another site from pointing its own domain at your server and driving the API through your browser (DNS rebinding). It does not replace a login.
 
 **The config directory is sensitive.** `/config/settings.json` holds your TMDB token, the Discord webhook URL and the Radarr and Sonarr API keys in plain text, readable only by its owner, as the Arrs do with theirs. The app never returns or logs them, but a copy of the directory exposes every key. Keep backups private and never post it in an issue.
 
