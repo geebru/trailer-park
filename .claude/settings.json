@@ -13,7 +13,6 @@
       "Bash(gh run list*)",
       "Bash(gh run view*)",
       "Bash(python -m py_compile *)",
-      "Bash(python -m http.server 8090 *)",
       "Bash(python dev/stack.py *)",
       "Bash(python dev/smoke_api.py *)",
       "Bash(docker ps*)",

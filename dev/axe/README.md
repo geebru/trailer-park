@@ -1,6 +1,6 @@
 # axe-core (vendored)
 
-Accessibility checker used for the "axe AA" rule in `AGENTS.md`. Dev only: nothing in this folder is copied into the Docker image or served by the app.
+Accessibility checker used for the "axe AA" rule in `AGENTS.md`. Dev only: it is not in the Docker image. `docker-compose.dev.yml` mounts this folder at `/app/static/ui/axe`, so the dev stack serves it from the app's own origin (the app's CSP blocks scripts from anywhere else).
 
 | | |
 |---|---|
@@ -12,14 +12,9 @@ Accessibility checker used for the "axe AA" rule in `AGENTS.md`. Dev only: nothi
 ## Scan a page
 
 1. Start the dev stack (see `dev/README.md`; in a worktree set `DEV_PORT` and `DEV_CONTAINER`) and open the page in the browser pane at 1280 px, then again at 390 px.
-2. Serve this folder so the page can load the script:
+2. Paste `scan.js` into the page's JS. It loads `axe.min.js` from `/static/ui/axe/`, runs the WCAG 2.0-2.2 A and AA rules and returns the violations with their selectors. Do this for each page and for open dialogs when a change touches them.
 
-   ```bash
-   python -m http.server 8090 --bind 127.0.0.1 --directory dev/axe
-   ```
-
-3. Paste `scan.js` into the page's JS. It loads `axe.min.js`, runs the WCAG 2.0-2.2 A and AA rules and returns the violations with their selectors. Do this for each page and for open dialogs when a change touches them.
-4. Stop the server when done.
+`static/ui/axe/` holds only a `.gitkeep`: Docker needs the folder to exist in the read-only `static` mount before it can mount this one over it. `.dockerignore` keeps it out of the image.
 
 A clean result is `violations: []`. `needsReview` lists checks axe could not decide automatically (usually colour contrast over images); look at those by eye.
 
