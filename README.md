@@ -117,7 +117,7 @@ Changing the folder or file name settings never moves a title between Missing an
 - **Files** opens per-file **Rename** (to the current naming, keeps the extension, never overwrites), **Keep only this** (deletes the others) and **Delete**.
 - **Rename N** (top right) renames every flagged single-file title in the current tab and connection. A dry run shows what is ready or blocked first, and titles with several files are skipped.
 
-Trailer Park stores metadata for trailers it downloads (TMDB video name, YouTube ID, score, time, source). Renames keep that metadata. Trailers it did not download show as **Found on disk**.
+Trailer Park stores metadata for trailers it downloads (TMDB video name, YouTube ID, language, score, time, source). Renames keep that metadata. Trailers it did not download show as **Found on disk**.
 
 A download opens a live log with progress. **Run in background** closes it without stopping anything; **Cancel** stops the download and removes partial files.
 
@@ -140,11 +140,11 @@ Settings are saved with **Save changes** (or **Discard**). Connections are saved
 | **Behavior** | **Positive keywords** and **Negative keywords** (see below), the **TV season fallback** (see below), and the **YouTube search fallback** (off by default). |
 | **TMDB** | Your TMDB Read Access Token, with **Test key**. |
 | **Downloads** | yt-dlp version and updates, and whether the [cookies file](#yt-dlp) is in use. **Resolution** (maximum: 480p, 720p, **1080p**, 4K), **Output container** (**mkv** or mp4; mp4 prefers H.264 so files play on more devices) and **Concurrent downloads** (**1** to 4). Changes only affect new downloads. |
-| **Automation** | **Sync interval** (Off, **5**, 10, 15, 30 minutes, 1, 6 or 24 hours), **Sync now**, and **Activity retention** (60, **90** or 180 days, 1 year, or forever). |
+| **Automation** | **Sync interval** (Off, **5**, 10, 15, 30 minutes, 1, 6 or 24 hours) with the **Next sync** time and **Sync now**, **Only grab monitored titles** (off by default), and **Activity retention** (60, **90** or 180 days, 1 year, or forever). |
 | **Notifications** | An optional Discord webhook URL (only `https://discord.com/api/webhooks/...` addresses are accepted) with **Send test** (a successful test saves it), and toggles for **Trailer downloaded** and **Grab failed** (both on by default). Batches and Sync now send one summary instead of one message per title. |
 | **Ignored** | The titles you chose to ignore, each with **Un-ignore**. |
 
-**Automatic grabs** come from a watcher that polls each connection's API at the sync interval (Off turns automatic grabs off). Radarr grabs on import and upgrade. Sonarr grabs when a series is added, and if its folder does not exist yet it waits (up to 30 days). The first check of a connection only records a baseline, so use **Grab N missing** for titles that were already there. **Sync now** runs a check immediately. Existing trailers are kept on upgrades and on later episode imports.
+**Automatic grabs** come from a watcher that polls each connection's API at the sync interval (Off turns automatic grabs off). Radarr grabs on import and upgrade. Sonarr grabs when a series is added, and if its folder does not exist yet it waits (up to 30 days). The first check of a connection only records a baseline, so use **Grab N missing** for titles that were already there. **Sync now** runs a check immediately. Existing trailers are kept on upgrades and on later episode imports. With **Only grab monitored titles** on, the watcher and **Grab N missing** skip titles that Radarr or Sonarr has unmonitored; they stay in Trailers and can still be grabbed one at a time.
 
 The download limit applies across the web interface, batches, the watcher and the command line.
 
@@ -240,7 +240,7 @@ The `/config` volume holds the app's state. Do not commit it to a public reposit
 | `cookies.txt` | Optional YouTube cookies for yt-dlp (you add it; see [yt-dlp](#yt-dlp)) |
 | `download-slots/` | Lock files for the concurrent download limit |
 
-Every setting also has an environment variable that gives it its initial value: the setting's name in capitals, such as `TMDB_API_KEY`, `MEDIA_ROOT`, `VIDEO_QUALITY`, `WATCH_INTERVAL_MINUTES`, `SEASON_FALLBACK` or `YOUTUBE_SEARCH`. Once settings have been saved they live in `settings.json` and that file wins, so use the interface after the first save.
+Every setting also has an environment variable that gives it its initial value: the setting's name in capitals, such as `TMDB_API_KEY`, `MEDIA_ROOT`, `VIDEO_QUALITY`, `WATCH_INTERVAL_MINUTES`, `SEASON_FALLBACK`, `YOUTUBE_SEARCH` or `ONLY_MONITORED`. Once settings have been saved they live in `settings.json` and that file wins, so use the interface after the first save.
 
 ---
 

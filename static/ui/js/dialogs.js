@@ -233,11 +233,13 @@ export function openRename(scope, { onChange } = {}) {
 
 /* ── Grab all missing ──────────────────────────────────────────────── */
 
-export function openGrabAll(scope, { count, label, onChange } = {}) {
+export function openGrabAll(scope, { count, skipped = 0, label, onChange } = {}) {
   const dlg = createDialog({ title: `Grab ${number(count)} missing trailer${count === 1 ? "" : "s"}?`, size: "sm" });
   const err = h("div", {});
   const go = btn("btn--primary", "Start grab", start, "wand-magic-sparkles");
-  dlg.body.append(h("p", { class: "hint hint--lead" }, "Trailer Park will search for every missing trailer in ", h("strong", {}, label), ". Titles are downloaded one after another; progress shows in the sidebar."), err);
+  dlg.body.append(h("p", { class: "hint hint--lead" }, "Trailer Park will search for every missing trailer in ", h("strong", {}, label), ". Titles are downloaded one after another; progress shows in the sidebar."),
+    skipped ? h("p", { class: "hint" }, `${number(skipped)} unmonitored title${skipped === 1 ? " is" : "s are"} skipped (Settings → Automation). You can still grab ${skipped === 1 ? "it" : "them"} one at a time.`) : null,
+    err);
   dlg.footer.append(h("span", {}), h("div", { class: "dialog__actions" }, btn("btn--tertiary", "Cancel", dlg.close), go));
   async function start() {
     setDisabled(go, "Starting the grab…");

@@ -18,7 +18,7 @@ const SECTIONS = [
   { group: "setup", id: "behavior", label: "Behavior", icon: "sliders", blurb: "How trailers are matched and what happens when TMDB has nothing suitable." },
   { group: "setup", id: "tmdb", label: "TMDB", icon: "key", blurb: "Credentials used to find trailers for each title." },
   { group: "setup", id: "ytdlp", label: "Downloads", icon: "terminal", blurb: "Video quality, file type, and the yt-dlp downloader." },
-  { group: "setup", id: "automation", label: "Automation", icon: "arrows-rotate", blurb: "How often connected services sync and how long activity is kept." },
+  { group: "setup", id: "automation", label: "Automation", icon: "arrows-rotate", blurb: "How often connected services sync, which titles are grabbed, and how long activity is kept." },
   { group: "setup", id: "notifications", label: "Notifications", icon: "bell", blurb: "Send download results to a Discord webhook." },
   { group: "library", id: "ignored", label: "Ignored", icon: "ban", blurb: "Titles you don't want a trailer for. They are left out of Missing, Grab missing and automatic grabs." },
 ];
@@ -378,8 +378,8 @@ export function mount(container, { query, navigate }) {
   function automation() {
     const iv = selectInput(INTERVALS, draft.watch_interval_minutes, (v) => setDraft("watch_interval_minutes", v));
     const rt = selectInput(RETENTION, draft.activity_retention_days, (v) => setDraft("activity_retention_days", v));
-    const nextEl = h("div", { class: "mono card__big" });
-    const syncBtn = btn("btn--secondary", "Sync now", async () => {
+    const nextEl = h("span", { class: "mono field__value" });
+    const syncBtn = btn("btn--secondary btn--sm", "Sync now", async () => {
       setDisabled(syncBtn, "Starting a sync…");
       try { await api.post("/watcher/run", {}); toast("Sync started.", "info"); store.set("overview", await api.get("/overview")); }
       catch (e) { toast(e.message, "danger"); }
@@ -392,10 +392,16 @@ export function mount(container, { query, navigate }) {
     }
     paintNext();
     nextTimer = setInterval(paintNext, 1000);
-    return h("div", { class: "stack" },
-      h("div", { class: "grid2" }, field("Sync interval", "How often to check every connection", iv.el, iv.id), field("Activity retention", "Older entries are removed automatically", rt.el, rt.id)),
-      card(h("div", { class: "split" }, h("div", {}, h("div", { class: "label" }, "Next sync"), nextEl), syncBtn)),
-      h("p", { class: "hint" }, "A sync is a lightweight check for added or changed titles. Trailer searches and downloads only run when something relevant changed."));
+    return h("div", { class: "stack stack--loose" },
+      group("Syncing", "A sync is a lightweight check for added or changed titles. Trailer searches and downloads only run when something relevant changed.",
+        h("div", { class: "grid2" },
+          field("Sync interval", "How often to check every connection", iv.el, iv.id),
+          h("div", { class: "field" }, h("span", { class: "label", id: "next-sync-label" }, "Next sync"),
+            h("div", { class: "field__row", role: "group", "aria-labelledby": "next-sync-label" }, nextEl, syncBtn)))),
+      group("Monitored", null,
+        toggle("Only grab monitored titles", "The sync and Grab missing skip titles that Radarr or Sonarr has unmonitored. They stay in Trailers, and you can still grab them one at a time.", draft.only_monitored === "on", (v) => setDraft("only_monitored", v ? "on" : "off"))),
+      group("Retention", null,
+        h("div", { class: "grid2" }, field("Activity retention", "Older entries are removed automatically", rt.el, rt.id))));
   }
   function nextIn(iso) {
     const s = Math.round((Date.parse(iso || "") - Date.now()) / 1000);
