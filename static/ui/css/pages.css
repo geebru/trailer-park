@@ -450,10 +450,20 @@
   color: var(--text-muted);
 }
 
+.trailer-row__path,
+.trailer-row__size {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1rem;
+}
+
 .trailer-row__path {
   overflow-wrap: anywhere;
-  font-size: var(--text-xs);
   color: var(--text-soft);
+}
+
+.trailer-row__size {
+  color: var(--text-muted);
 }
 
 .trailer-row__flags {
