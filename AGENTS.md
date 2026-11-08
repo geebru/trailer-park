@@ -26,7 +26,7 @@ HTML and CSS expert, comfortable enough in JS for design-system work, no hard to
 - Mutating requests need `Content-Type: application/json` (else 415). Errors: `{"error":{"code","message"}}`.
 - Long actions return 202 `{"job":{...}}`; poll `GET /api/jobs/<id>?after=<seq>`. One active job per item (409 `job_active`).
 - Items are addressed `/api/items/<connection_id>/<item_id>`. No library IDs; each connection is one synthetic library.
-- Secrets (TMDB key, Discord webhook) are never returned, only `configured` flags. Settings PUT is partial; `clear_<key>: true` clears a secret.
+- Secrets (TMDB key, Discord webhook) are never returned, only `configured` flags. Settings PUT is partial; `clear_<key>: true` clears a secret. A blank Arr `api_key` keeps the saved one only while the URL points to the same server (scheme, host, port); otherwise it is a 400.
 
 ## Behavior to keep
 - Missing = no trailer file under any name. File actions only touch detected trailers, never media files.
