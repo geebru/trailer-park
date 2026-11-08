@@ -1,5 +1,39 @@
 # Trailer Park — Changelog
 
+## [0.10.0](https://github.com/geebru/trailer-park/compare/v0.9.0...v0.10.0) (2026-11-08)
+
+
+### ⚠ BREAKING CHANGES
+
+* **api:** Requests with an unexpected Host header now get 421. If you open Trailer Park by your own domain, a reverse proxy name or a Tailscale name, add it to ALLOWED_HOSTS (comma separated, *.example.com allowed) and restart; IP addresses, localhost, short LAN names and .local, .lan and .home.arpa names need nothing.
+
+### ✨ Features
+
+* **activity:** log Sync now checks, including failures ([#41](https://github.com/geebru/trailer-park/issues/41)) ([e6d3537](https://github.com/geebru/trailer-park/commit/e6d3537b75302d6204b667b1fccbae52050bb558))
+
+
+### 🐛 Bug fixes
+
+* **api:** reject requests with an unexpected Host header ([#64](https://github.com/geebru/trailer-park/issues/64)) ([1f2e66d](https://github.com/geebru/trailer-park/commit/1f2e66de9254d1fa8963b973f554367ecda5cf02)), closes [#47](https://github.com/geebru/trailer-park/issues/47)
+* **api:** send security headers ([#63](https://github.com/geebru/trailer-park/issues/63)) ([c059145](https://github.com/geebru/trailer-park/commit/c059145f37acf1a477bb3f37203fe3bfd6d9d9e8)), closes [#48](https://github.com/geebru/trailer-park/issues/48)
+* **docker:** make the image work when run as a non-root user ([#65](https://github.com/geebru/trailer-park/issues/65)) ([e04aa2a](https://github.com/geebru/trailer-park/commit/e04aa2abd1d3855c4a8e4c3f70ac4b20533aa4b0)), closes [#49](https://github.com/geebru/trailer-park/issues/49)
+* **engine:** keep secrets out of logs, Activity and error text ([#56](https://github.com/geebru/trailer-park/issues/56)) ([14d6ea3](https://github.com/geebru/trailer-park/commit/14d6ea3eed5a88ebee04c3b94b7ab36b6c698a43)), closes [#50](https://github.com/geebru/trailer-park/issues/50)
+* **settings:** accept only Discord webhook URLs ([#55](https://github.com/geebru/trailer-park/issues/55)) ([1e49792](https://github.com/geebru/trailer-park/commit/1e49792ce554663b5d07606a16bc1216648cf903))
+* **settings:** require the API key again when an Arr URL changes ([#61](https://github.com/geebru/trailer-park/issues/61)) ([d8678d8](https://github.com/geebru/trailer-park/commit/d8678d838ead2501e367a09f72e62f8344ed1d64)), closes [#45](https://github.com/geebru/trailer-park/issues/45)
+* **trailers:** switch list layout by panel width ([#62](https://github.com/geebru/trailer-park/issues/62)) ([1aa2684](https://github.com/geebru/trailer-park/commit/1aa2684b1bf51b291dc794ab3b4e8ba2c53f4fde))
+
+
+### 📝 Documentation
+
+* add an AI disclaimer to the README ([#43](https://github.com/geebru/trailer-park/issues/43)) ([ce7d952](https://github.com/geebru/trailer-park/commit/ce7d9529a1091b2093747f8ebe105d9c76ef9aea))
+* add SECURITY.md and say what the app does and does not protect ([#60](https://github.com/geebru/trailer-park/issues/60)) ([1d8681d](https://github.com/geebru/trailer-park/commit/1d8681dde1d030a7049e9e35ee081a74fa2cb96e))
+* add the MIT license and third-party notices ([#40](https://github.com/geebru/trailer-park/issues/40)) ([d4b3d6f](https://github.com/geebru/trailer-park/commit/d4b3d6f98181758cda88133c6b8c0adf9717d952))
+
+
+### Other changes
+
+* stop signing agent commits ([#58](https://github.com/geebru/trailer-park/issues/58)) ([87e1fb7](https://github.com/geebru/trailer-park/commit/87e1fb7e3ea8638a443df4e6e87b9a15cf2df8c1))
+
 ## [0.9.0](https://github.com/geebru/trailer-park/compare/v0.8.0...v0.9.0) (2026-11-04)
 
 
