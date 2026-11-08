@@ -22,6 +22,7 @@ const SECTIONS = [
 const SECRET_KEYS = ["tmdb_api_key", "discord_webhook_url"];
 const INTERVALS = [[0, "Off"], [5, "5 minutes"], [10, "10 minutes"], [15, "15 minutes"], [30, "30 minutes"], [60, "1 hour"], [360, "6 hours"], [1440, "24 hours"]];
 const RETENTION = [[60, "60 days"], [90, "90 days"], [180, "180 days"], [365, "1 year"], [0, "Forever"]];
+const SEASON_FALLBACK = [["first", "First season (spoiler-free)"], ["latest", "Latest season"], ["off", "Off"]];
 const QUALITY = [[480, "480p"], [720, "720p"], [1080, "1080p"], [2160, "4K"]];
 
 /* ── Small form pieces ─────────────────────────────────────────────── */
@@ -241,9 +242,22 @@ export function mount(container, { query, navigate }) {
     render();
     return h("div", {}, h("div", { class: "label" }, label), h("div", { class: `hint tone-${tone}` }, caption), wrap);
   }
+  function seasonFallback() {
+    const sel = selectInput(SEASON_FALLBACK, draft.season_fallback, (v) => setDraft("season_fallback", v));
+    const help = h("div", { class: "hint", id: `${sel.id}-help` },
+      h("p", {}, "Used only when a show has no show-level trailer on TMDB. ", h("strong", {}, "First season"), " tries season 1, then season 2. ",
+        h("strong", {}, "Latest season"), " tries the newest season, the one before it, then season 1. At most three lookups; specials are skipped."),
+      h("p", {}, "Show-level trailers that mention a later season (“Season 8”, “Final Season”) are ranked last, but still used if nothing else exists."),
+      h("p", {}, "The keywords ", h("span", { class: "mono" }, "season 1"), " and ", h("span", { class: "mono" }, "season 01"),
+        " are positive keywords by default and add score. Existing installs keep their saved keywords."));
+    const wrap = field("TV season fallback", null, sel.el, sel.id);
+    sel.el.setAttribute("aria-describedby", help.id);
+    return h("div", { class: "stack stack--tight" }, h("div", { class: "narrow" }, wrap), help);
+  }
   function scoring() {
     return h("div", { class: "stack" },
       h("div", { class: "grid2" }, termEditor("preferred_terms", "Positive keywords", "success", "Increase score"), termEditor("excluded_terms", "Negative keywords", "danger", "Reduce score")),
+      seasonFallback(),
       toggle("YouTube search fallback", "When TMDB has no suitable trailer, search YouTube directly. Results are scored with the same keywords.", draft.youtube_search === "on", (v) => setDraft("youtube_search", v ? "on" : "off")));
   }
 
