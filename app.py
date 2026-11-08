@@ -41,6 +41,21 @@ def not_found(_error):
     return render_template("shell.html"), 404     # the front end draws its own "not found" page
 
 
+@app.before_request
+def refuse_unexpected_host():
+    """DNS rebinding guard (rules in engine.py). A request with no Host header is not from a browser.
+    /health is exempt so health checks work whatever name they use."""
+    host = request.headers.get("Host", "")
+    if request.path == "/health" or not host or host_allowed(host):
+        return None
+    message = (f"The host name '{host[:100]}' is not allowed. To reach Trailer Park by this name, add it to "
+               "the ALLOWED_HOSTS environment variable (comma separated, for example "
+               "ALLOWED_HOSTS=trailers.example.com or *.example.com) and restart the container.")
+    if request.path.startswith("/api/"):
+        return jsonify({"error": {"code": "host_not_allowed", "message": message}}), 421
+    return message, 421, {"Content-Type": "text/plain; charset=utf-8"}
+
+
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({
