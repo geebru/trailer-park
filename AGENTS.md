@@ -11,7 +11,7 @@ HTML and CSS expert, comfortable enough in JS for design-system work, no hard to
 - `jobs.py`: in-memory jobs and batches. `library_cache.py`: item snapshots, rescans in the background.
 - `templates/shell.html` + `static/ui/` is the whole front end. No build step.
 - `dev/`: mock Arrs, fake media, `docker-compose.dev.yml` (bind-mounts source; restart the container to pick up edits).
-- `Dockerfile` copies files one by one and `.dockerignore` is an allowlist: a new module or folder the app needs must be added to both, or the image will not have it. Flask and Waitress are pinned in `requirements.txt`; yt-dlp is deliberately not.
+- `Dockerfile` copies files one by one and `.dockerignore` is an allowlist: a new module or folder the app needs must be added to both, or the image will not have it. Flask and Waitress are pinned in `requirements.txt`; yt-dlp is deliberately not. The image runs as root by default and must also work when compose sets `user:` (`XDG_CACHE_HOME=/tmp/.cache` keeps yt-dlp's and deno's caches writable for any user). Never write outside `/config`, the media folders and `/tmp`.
 
 ## Front end rules
 - Vanilla ES modules, `h()` element builder, client-side History router. No frameworks, no CSS frameworks, no CDN.

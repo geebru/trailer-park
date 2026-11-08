@@ -48,6 +48,8 @@ The image is published for `linux/amd64` and `linux/arm64`. Tags are `X.Y.Z`, `X
 
 **User mapping.** `user:` takes `UID:GID`, for example `"1000:1000"`. Do not assume that is right for your server. The user must be able to read and write both the media folders used for trailers and the `/config` volume. On Unraid, `99:100` (`nobody:users`) is common, but use the IDs that match your share permissions.
 
+The container runs as root unless you set `user:`, and running it unprivileged is recommended (see Security). If you add `user:` to an install that already ran as root, `./config` still belongs to root and the app cannot save anything there: change it once, for example `sudo chown -R 1000:1000 config`, with the IDs you chose.
+
 ### Upgrade
 
 ```bash
@@ -231,6 +233,8 @@ Every setting also has an environment variable that gives it its initial value: 
 **No login.** Trailer Park has no authentication of its own (a login is tracked in [#15](https://github.com/geebru/trailer-park/issues/15)). Anyone who can reach its port can change settings, start grabs and delete the trailers it manages. Keep it on a trusted network and off the public internet. If you need it from outside your LAN, use a VPN, or a reverse proxy that authenticates before it forwards a request.
 
 **The config directory is sensitive.** `/config/settings.json` holds your TMDB token, the Discord webhook URL and the Radarr and Sonarr API keys in plain text, readable only by its owner, as the Arrs do with theirs. The app never returns or logs them, but a copy of the directory exposes every key. Keep backups private and never post it in an issue.
+
+**Run it unprivileged.** The container runs as root unless you set `user:`. yt-dlp and ffmpeg handle data from the internet, so a flaw in either would get the whole container. Set `user:` to an ID that can write `/config` and your media folders (see User mapping under Install). The image works the same either way.
 
 **Reporting a vulnerability.** See [SECURITY.md](SECURITY.md).
 
