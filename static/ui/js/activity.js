@@ -34,6 +34,8 @@ export function describeActivity(e) {
     }
     case "delete":
       return { icon: "trash", tone, title: "Trailer files removed", sub: join(subject, clip(e.detail)) };
+    case "ignore":
+      return { icon: "ban", tone, title: e.action === "ignore" ? "Title ignored" : "Title no longer ignored", sub: subject };
     case "batch":
       return { icon: "list-check", tone, title: /cancel/i.test(e.action || "") ? "Batch cancelled" : "Batch finished", sub: join(e.title, clip(e.detail)) };
     case "sync":

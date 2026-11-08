@@ -12,6 +12,7 @@ export const title = "Settings";
 
 const SECTIONS = [
   { id: "connections", label: "Connections", icon: "link", blurb: "Connect any number of Radarr and Sonarr services." },
+  { id: "ignored", label: "Ignored", icon: "ban", blurb: "Titles you don't want a trailer for. They are left out of Missing, Grab missing and automatic grabs." },
   { id: "naming", label: "Naming", icon: "folder", blurb: "Choose where trailers live and how downloaded files are named." },
   { id: "behavior", label: "Behavior", icon: "sliders", blurb: "How trailers are matched and what happens when TMDB has nothing suitable." },
   { id: "tmdb", label: "TMDB", icon: "key", blurb: "Credentials used to find trailers for each title." },
@@ -93,7 +94,7 @@ export function mount(container, { query, navigate }) {
   }
   let saveMsg = "";
   function paintFoot() {
-    if (section === "connections") { replace(footEl); footEl.hidden = true; return; }
+    if (section === "connections" || section === "ignored") { replace(footEl); footEl.hidden = true; return; }
     footEl.hidden = false;
     const d = dirty();
     replace(footEl,
@@ -124,7 +125,7 @@ export function mount(container, { query, navigate }) {
     paintNav();
     replace(headEl, h("div", {}, h("h2", { id: "settings-title", class: "panel__title" }, def.label), h("p", { class: "settings__blurb" }, def.blurb)));
     clearInterval(nextTimer);
-    replace(bodyEl, ({ connections, naming, behavior, tmdb, ytdlp: downloads, automation, notifications }[section])());
+    replace(bodyEl, ({ connections, ignored, naming, behavior, tmdb, ytdlp: downloads, automation, notifications }[section])());
     paintFoot();
   }
 
@@ -198,6 +199,32 @@ export function mount(container, { query, navigate }) {
       })));
   }
   const dirtyKeysFrom = (d) => Object.entries(d).filter(([k, v]) => String(v) !== String(server.settings[k]));
+
+  /* ── Ignored ─────────────────────────────────────────────────────── */
+  function ignored() {
+    const list = h("div", { class: "stack" }, h("p", { class: "muted" }, "Loading…"));
+    const render = (items) => replace(list, items.length ? items.map((i) => ignoredCard(i, items, render))
+      : h("p", { class: "muted" }, "Nothing is ignored. Use Ignore on a title in Missing to leave it out."));
+    api.get("/ignored").then((r) => { if (!stopped && section === "ignored") render(r.items); })
+      .catch((e) => replace(list, notice("danger", e.message)));
+    return list;
+  }
+  function ignoredCard(item, items, render) {
+    const label = [item.title, item.year].filter(Boolean).join(" ");
+    const undo = btn("btn--tertiary btn--sm", "Un-ignore", async () => {
+      setDisabled(undo, "Working…");
+      try {
+        await api.post(`/items/${item.connection_id}/${item.id}/ignore`, { ignored: false });
+        toast(`${label} is no longer ignored.`, "info");
+        render(items.filter((x) => x !== item));
+        store.set("overview", await api.get("/overview"));
+      } catch (e) { toast(e.message, "danger"); setDisabled(undo, null); }
+    }, "xmark", { "aria-label": `Un-ignore ${label}` });
+    return card(h("div", { class: "split" },
+      h("div", { class: "row-gap" }, h("div", { class: "file__icon" }, icon(item.type === "series" ? "tv" : "film")),
+        h("div", {}, h("div", { class: "card__title" }, label), h("div", { class: "hint" }, item.connection_name))),
+      undo));
+  }
 
   /* ── Naming ──────────────────────────────────────────────────────── */
   function naming() {

@@ -92,7 +92,7 @@ To build from source instead, clone the repository, replace `image:` with `build
 
 ### Overview
 
-Total titles, how many have no trailer (with a **Review** link to the Missing view), coverage as a percentage, and your most recent activity. The sidebar on every page shows each service's connection state, the next sync, and any running downloads or batch.
+Total titles, how many have no trailer (with a **Review** link to the Missing view), coverage as a percentage (ignored titles are left out of both), and your most recent activity. The sidebar on every page shows each service's connection state, the next sync, and any running downloads or batch.
 
 ### Trailers
 
@@ -108,6 +108,7 @@ Changing the folder or file name settings never moves a title between Missing an
 **Missing** lists titles with no trailer file at all. Radarr movies appear once the movie file exists, Sonarr series once their series folder exists.
 
 - **Grab** lets TMDB choose the best trailer. **Manual** uses a YouTube link or ID you give it.
+- **Ignore** is for titles you do not want a trailer for (shorts, kids' shows). An ignored title leaves Missing, its count, **Grab N missing** and the automatic grabs, and shows as **Ignored** under All titles, where **Grab** and **Manual** still work. Un-ignore it under **Settings → Ignored**. Once a title has a trailer the ignore is dropped.
 - **Grab N missing** (top right) grabs every missing title in the current tab and connection filter, one after another, after a confirmation. Progress and **Cancel batch** are in the sidebar.
 
 **Available** lists titles that have a trailer, marked **Name mismatch** (the file does not match your naming template) and/or **Multiple found** (several trailer files; allowed, not an error).
@@ -124,7 +125,7 @@ A download opens a live log with progress. **Run in background** closes it witho
 
 ### Activity
 
-A paged log of what happened: trailers downloaded (including manual ones), no suitable match found, failed downloads, renames, removed files, batches finished or cancelled, yt-dlp updates, maintenance, and one entry per connection each time you press **Sync now** (so a check that found nothing, or failed, is still visible; the scheduled checks are not logged). Entries older than the retention period are removed automatically.
+A paged log of what happened: trailers downloaded (including manual ones), no suitable match found, failed downloads, renames, removed files, ignored and un-ignored titles, batches finished or cancelled, yt-dlp updates, maintenance, and one entry per connection each time you press **Sync now** (so a check that found nothing, or failed, is still visible; the scheduled checks are not logged). Entries older than the retention period are removed automatically.
 
 ---
 
@@ -135,6 +136,7 @@ Settings are saved with **Save changes** (or **Discard**). Connections are saved
 | Section | What it controls |
 |---|---|
 | **Connections** | Radarr and Sonarr instances: name, type, base URL (no username or password in it), API key. Editing a connection keeps its saved key unless you point it at a different server, which needs the key entered again. Radarr connections feed Movies, Sonarr connections feed Shows. |
+| **Ignored** | The titles you chose to ignore, each with **Un-ignore**. |
 | **Naming** | **Media folder** (default `/data/media`). **Trailer folder** (default `trailers`; leave blank to save beside the media file). **File name template** (default `{title} ({year}).trailer`; variables `{title}` and `{year}`). A live **Output preview**. |
 | **Behavior** | **Positive keywords** and **Negative keywords** (see below), the **TV season fallback** (see below), and the **YouTube search fallback** (off by default). |
 | **TMDB** | Your TMDB Read Access Token, with **Test key**. |
@@ -232,6 +234,7 @@ The `/config` volume holds the app's state. Do not commit it to a public reposit
 | `activity.jsonl` | The Activity log |
 | `trailers.json` | Metadata for trailers Trailer Park downloaded |
 | `watch-state.json` | What the watcher has already seen |
+| `ignored.json` | Titles you ignored, so they are not counted as missing |
 | `ytdlp-status.json` | The last yt-dlp update check |
 | `bin/yt-dlp` | The updated yt-dlp copy, only after an in-app update |
 | `cookies.txt` | Optional YouTube cookies for yt-dlp (you add it; see [yt-dlp](#yt-dlp)) |
