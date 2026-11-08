@@ -306,7 +306,7 @@ By contributing, you agree that your contribution is licensed under the project'
 
 Open bugs as issues in the project repository. For ordinary bugs, provide the Trailer Park version, Docker environment, reproduction steps, expected behavior, actual behavior, and sanitized logs.
 
-For vulnerabilities involving unauthenticated access, path traversal, arbitrary file modification, credential disclosure, or command execution, avoid posting exploit details or secrets in a public issue. Contact the repository maintainer privately through an available repository security-reporting channel instead. If no private channel is published, request one without disclosing the vulnerability details.
+For vulnerabilities involving unauthenticated access, path traversal, arbitrary file modification, credential disclosure, or command execution, avoid posting exploit details or secrets in a public issue. Report it privately as described in [SECURITY.md](SECURITY.md).
 
 ## Review expectations
 
