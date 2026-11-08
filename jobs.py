@@ -169,7 +169,8 @@ def _run(job):
         else:
             payload, code = E.grab_connection_item(
                 job.connection_id, job.item_id, trigger="Web UI",
-                replace=(job.kind == "replace"), skip_existing=job.batch is not None)
+                replace=(job.kind == "replace"),
+                skip_existing=job.batch is not None and job.kind != "replace")
         status, result = _status_to_result(payload, code)
         if status == "succeeded":
             # Refresh before reporting success so the UI never shows a stale row (SPEC 4.3).
@@ -323,7 +324,7 @@ class BatchBusy(Exception):
 
 
 def start_batch(scope, items):
-    """items: list of {connection_id, id, title, year}. Raises BatchBusy."""
+    """items: list of {connection_id, id, title, year, kind?} (kind: grab, or replace). Raises BatchBusy."""
     global _batch
     with _lock:
         if _batch is not None and _batch.status == "running":
@@ -384,7 +385,7 @@ def _batch_worker(batch):
                     exhausted = True
                 else:
                     try:
-                        job = submit("grab", item["connection_id"], item["id"],
+                        job = submit(item.get("kind", "grab"), item["connection_id"], item["id"],
                                      item["title"], item["year"], batch=batch)
                         with _lock:
                             batch.in_flight[job.id] = job

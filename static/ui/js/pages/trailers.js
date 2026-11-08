@@ -3,7 +3,7 @@ import { icon } from "../icons.js";
 import { api } from "../api.js";
 import { number } from "../format.js";
 import { store } from "../store.js";
-import { openManual, openFiles, openRename, openGrabAll, startJob } from "../dialogs.js";
+import { openManual, openFiles, openRename, openGrabAll, openGrabSelected, startJob } from "../dialogs.js";
 import { setDisabled } from "../tip.js";
 import { toast } from "../toast.js";
 import { pageHeading, notice } from "./common.js";
@@ -43,7 +43,7 @@ export function mount(container, { query, navigate }) {
   let timer = null;
   let typing = null;
   let stopped = false;
-  const picked = new Map();   // "connection:id" -> {connection, id} of missing titles chosen for a batch; survives paging, not filters
+  const picked = new Map();   // "connection:id" -> {connection, id, present} of titles chosen for a batch; survives paging, not filters
 
   function url(extra = {}) {
     const s = { ...state, ...extra };
@@ -143,8 +143,8 @@ export function mount(container, { query, navigate }) {
   }
 
   const keyOf = (item) => `${item.connection_id}:${item.id}`;
-  const refOf = (item) => ({ connection: item.connection_id, id: item.id });
-  const selectable = (item) => item.presence === "missing" && !activeJob(item);
+  const refOf = (item) => ({ connection: item.connection_id, id: item.id, present: item.presence !== "missing" });
+  const selectable = (item) => !activeJob(item);
 
   function toggle(item, on) {
     on ? picked.set(keyOf(item), refOf(item)) : picked.delete(keyOf(item));
@@ -156,8 +156,17 @@ export function mount(container, { query, navigate }) {
     for (const box of listEl.querySelectorAll("input[data-key]")) box.checked = picked.has(box.dataset.key);
   }
 
-  async function grabSelected() {
-    const items = [...picked.values()];
+  // A selection that includes titles with a trailer asks first: grabbing those replaces them.
+  function grabSelected() {
+    const refs = [...picked.values()];
+    const present = refs.filter((r) => r.present).length;
+    if (!refs.length) return;
+    if (!present) return startBatch(refs.map(({ connection, id }) => ({ connection, id })));
+    openGrabSelected({ missing: refs.length - present, present, onChoose: (replaceExisting) =>
+      startBatch(refs.filter((r) => replaceExisting || !r.present).map(({ connection, id, present: has }) => ({ connection, id, ...(has && { replace: true }) }))) });
+  }
+
+  async function startBatch(items) {
     if (!items.length) return;
     try {
       const { batch } = await api.post("/batches", { items });
@@ -177,13 +186,14 @@ export function mount(container, { query, navigate }) {
       onchange: (e) => { for (const i of rows) e.target.checked ? picked.set(keyOf(i), refOf(i)) : picked.delete(keyOf(i)); renderSelect(); updateRowChecks(); } });
     all.indeterminate = onPage > 0 && onPage < rows.length;
     if (!rows.length) all.disabled = true;
+    const withTrailer = [...picked.values()].filter((r) => r.present).length;
     const batchRunning = store.get("batch")?.status === "running";
     const grab = h("button", { type: "button", class: "btn btn--primary btn--sm", onclick: grabSelected }, icon("download"), picked.size ? `Grab ${number(picked.size)} selected` : "Grab selected");
-    setDisabled(grab, batchRunning ? "A batch is already running. Wait for it to finish or cancel it in the sidebar." : !picked.size && "Select at least one title with no trailer first");
+    setDisabled(grab, batchRunning ? "A batch is already running. Wait for it to finish or cancel it in the sidebar." : !picked.size && "Select at least one title first");
     replace(selectEl,
-      h("label", { class: "trailer-select__all", for: "select-page" }, all, h("span", {}, "Select all missing on this page")),
+      h("label", { class: "trailer-select__all", for: "select-page" }, all, h("span", {}, "Select all on this page")),
       h("div", { class: "trailer-select__actions" },
-        picked.size ? h("span", { class: "muted", role: "status" }, `${number(picked.size)} selected`) : null,
+        picked.size ? h("span", { class: "muted", role: "status" }, `${number(picked.size)} selected${withTrailer ? ` · ${number(withTrailer)} with a trailer` : ""}`) : null,
         picked.size ? h("button", { type: "button", class: "btn btn--tertiary btn--sm", onclick: () => { picked.clear(); renderSelect(); updateRowChecks(); } }, "Clear") : null,
         grab));
   }

@@ -109,7 +109,7 @@ Changing the folder or file name settings never moves a title between Missing an
 
 - **Grab** lets TMDB choose the best trailer. **Manual** uses a YouTube link or ID you give it.
 - **Grab N missing** (top right) grabs every missing title in the current tab and connection filter, one after another, after a confirmation. Progress and **Cancel batch** are in the sidebar.
-- **Select** (checkboxes on titles with no trailer, plus **Select all missing on this page**) then **Grab N selected** grabs just those titles as one batch, with no dialog. The selection survives paging and is cleared when you change a filter.
+- **Select** titles with the checkboxes (or **Select all on this page**; filter to Missing first to pick only those), then **Grab N selected** grabs them as one batch, with no job dialog. If the selection includes titles that already have a trailer, a confirmation asks whether to **Grab missing only** or **Grab all**, which replaces those trailers (the old files are deleted once the new download succeeds). The selection survives paging and is cleared when you change a filter.
 
 **Available** lists titles that have a trailer, marked **Name mismatch** (the file does not match your naming template) and/or **Multiple found** (several trailer files; allowed, not an error).
 
@@ -215,7 +215,7 @@ The interface is a client of a JSON API under `/api`, with no authentication. `G
 | Titles | `GET /api/items`, `GET /api/items/<connection>/<id>`, `POST /api/library/refresh` |
 | Grab, replace, manual | `POST /api/items/<connection>/<id>/grab` (send `{"replace": true}` to replace), `POST .../force` (a specific YouTube link or ID) |
 | Files | `POST /api/items/<connection>/<id>/files/rename`, `.../keep`, `.../delete`, `POST /api/items/rename-all` |
-| Jobs and batches | `GET /api/jobs`, `GET /api/jobs/<id>`, `POST /api/jobs/<id>/cancel`, `POST /api/batches` (a scope, or `{"items": [{"connection", "id"}]}` for a selection), `GET /api/batches/current`, `POST /api/batches/current/cancel` |
+| Jobs and batches | `GET /api/jobs`, `GET /api/jobs/<id>`, `POST /api/jobs/<id>/cancel`, `POST /api/batches` (a scope, or `{"items": [{"connection", "id", "replace"?}]}` for a selection: missing titles are grabbed, titles with a trailer only when `replace` is true), `GET /api/batches/current`, `POST /api/batches/current/cancel` |
 | Sync | `POST /api/watcher/run` |
 | Overview and activity | `GET /api/overview`, `GET /api/activity`, `POST /api/activity/clear` |
 | Settings | `GET` and `PUT /api/settings`, `POST /api/settings/test/<service>`, `POST /api/settings/naming-preview`, `POST /api/connections/test` |
