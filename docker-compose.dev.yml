@@ -38,6 +38,8 @@ services:
       - ./jobs.py:/app/jobs.py:ro
       - ./templates:/app/templates:ro
       - ./static:/app/static:ro
+      # axe-core for dev/axe/scan.js, served from the app's own origin (the CSP blocks other origins).
+      - ./dev/axe:/app/static/ui/axe:ro
     depends_on:
       - mock-radarr
       - mock-radarr-4k
