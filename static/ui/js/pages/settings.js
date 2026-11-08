@@ -55,15 +55,18 @@ function toggle(label, description, on, onChange) {
     h("span", { class: "switch__track" }, knob));
   return el;
 }
-// A toggle laid out like a dropdown field: a control-height row (title, switch) with the description under it.
-function switchField(title, description, on, onChange) {
+// A toggle laid out like a dropdown field: label and hint on top, then a control-height row that
+// shows the current value (On or Off) beside the switch, then a longer note.
+function switchField(label, hint, note, on, onChange) {
   const id = `f${++uid}`;
   let state = on;
-  const el = h("button", { type: "button", role: "switch", id, "aria-checked": String(state), "aria-describedby": `${id}-hint`, class: "switch switch--control",
-    onclick: () => { state = !state; el.setAttribute("aria-checked", String(state)); onChange(state); } },
-    h("span", { class: "switch__label" }, title),
-    h("span", { class: "switch__track" }, h("span", { class: "switch__knob" })));
-  return h("div", { class: "field" }, el, h("p", { class: "hint", id: `${id}-hint` }, description));
+  const value = h("span", { class: "switch__state", "aria-hidden": "true" }, state ? "On" : "Off");
+  const el = h("button", { type: "button", role: "switch", id, "aria-checked": String(state), "aria-describedby": `${id}-hint ${id}-note`, class: "switch switch--control",
+    onclick: () => { state = !state; el.setAttribute("aria-checked", String(state)); value.textContent = state ? "On" : "Off"; onChange(state); } },
+    value, h("span", { class: "switch__track" }, h("span", { class: "switch__knob" })));
+  return h("div", { class: "field" },
+    h("div", { class: "field__head" }, h("label", { class: "label", for: id }, label), h("span", { class: "label__hint", id: `${id}-hint` }, hint)),
+    el, h("p", { class: "hint", id: `${id}-note` }, note));
 }
 const btn = (cls, label, onclick, ic, extra = {}) => h("button", { type: "button", class: `btn ${cls}`, onclick, ...extra }, ic ? icon(ic) : null, label);
 const card = (...kids) => h("div", { class: "card" }, kids);
@@ -375,7 +378,7 @@ export function mount(container, { query, navigate }) {
         h("div", { class: "field" }, h("span", { class: "label", id: "next-sync-label" }, "Next sync"),
           h("div", { class: "field__row", role: "group", "aria-labelledby": "next-sync-label" }, nextEl, syncBtn))),
       h("p", { class: "hint" }, "A sync is a lightweight check for added or changed titles. Trailer searches and downloads only run when something relevant changed."),
-      switchField("Only grab monitored titles", "The sync and Grab missing skip titles that Radarr or Sonarr has unmonitored. They stay in Trailers, and you can still grab them one at a time.", draft.only_monitored === "on", (v) => setDraft("only_monitored", v ? "on" : "off")),
+      switchField("Only grab monitored titles", "Skip titles that Radarr or Sonarr has unmonitored", "Applies to the sync and Grab missing. Unmonitored titles stay in Trailers and can still be grabbed one at a time.", draft.only_monitored === "on", (v) => setDraft("only_monitored", v ? "on" : "off")),
       h("div", { class: "grid2" }, field("Activity retention", "Older entries are removed automatically", rt.el, rt.id)));
   }
   function nextIn(iso) {

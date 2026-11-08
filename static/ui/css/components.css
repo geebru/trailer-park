@@ -972,6 +972,11 @@
   border-color: var(--line-strong);
 }
 
+.switch__state {
+  font-size: var(--text-sm);
+  color: var(--text-soft);
+}
+
 .switch__label {
   display: block;
   font-size: var(--text-sm);
