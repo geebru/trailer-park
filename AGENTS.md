@@ -1,6 +1,9 @@
 # Trailer Park: agent notes
 
-Flask + Waitress app that grabs trailers (TMDB + yt-dlp) for Radarr/Sonarr titles. Owner prefers simple, direct solutions. Remote is GitHub (`geebru/trailer-park`).
+Flask + Waitress app that grabs trailers (TMDB + yt-dlp) for Radarr/Sonarr titles. Remote is GitHub (`geebru/trailer-park`).
+
+## Owner
+HTML and CSS expert, comfortable enough in JS for design-system work, no hard tooling opinions (knows node, eslint, stylelint, TypeScript). Prefers simple, direct solutions. Reach for the native platform first, then a small low-level library (Lit) over a large framework (React). Never a CSS framework (Bootstrap, Tailwind). Where the owner has no stated preference, pick the conventional tool and say why in one line.
 
 ## Layout
 - `engine.py`: all logic, no Flask. Nothing imports `app`.
@@ -11,7 +14,8 @@ Flask + Waitress app that grabs trailers (TMDB + yt-dlp) for Radarr/Sonarr title
 - `Dockerfile` copies files one by one and `.dockerignore` is an allowlist: a new module or folder the app needs must be added to both, or the image will not have it. Flask and Waitress are pinned in `requirements.txt`; yt-dlp is deliberately not.
 
 ## Front end rules
-- Vanilla ES modules, `h()` element builder, client-side History router. No frameworks, no Tailwind, no CDN.
+- Vanilla ES modules, `h()` element builder, client-side History router. No frameworks, no CSS frameworks, no CDN.
+- Direction, not started: the owner finds plain modules hard to work in and expects to move to Lit components with a build step (and likely eslint, stylelint and TypeScript). Until an issue says to migrate, keep the rules here; do not add Lit or a build step piecemeal. If asked to plan it, the Dockerfile, `.dockerignore` and axe flow need to change with it.
 - Style only through tokens in `css/tokens.css` (palette, then semantic layer). Theme is Moss (`data-theme`).
 - Icons: Font Awesome Free SVGs in `js/icons.js`. Fonts are self-hosted.
 - Modals use native `<dialog>` (`dialog.js`). Filters live in the URL. Keep a11y clean (axe AA, visible focus).
@@ -55,30 +59,36 @@ Keep these files lean: each fact lives in one place, link instead of repeating, 
 
 ## Releases
 - release-please keeps one open release PR built from the commit history on `main`. The owner merges it: that tags `vX.Y.Z`, creates the GitHub Release and rewrites `APP_VERSION` in `engine.py` and the README release line (both carry an `x-release-please-version` marker: keep it). Never edit those versions, add release changelog sections, or hand-edit the release PR: it is regenerated on every push to `main`, so get a good result from the commit instead.
-- The commit type decides the changelog section and the bump (before 1.0). Visible types open or update the release PR: `feat` (✨ Features) and breaking changes bump the minor version, every other visible type bumps the patch. Visible: `feat`, `fix` (🐛 Bug fixes), `perf` (⚡ Performance), `docs` (📝 Documentation), `revert`, and `test`, `refactor`, `chore`, `style` (Other changes). Hidden, so no notes and no release: `agent` (`AGENTS.md`, `CLAUDE.md`, `.claude/`), `ci` (workflows, Dependabot, release config) and `build`. Pick the type by what users see: a change users must act on is `feat!` or `fix!`.
+- The commit type decides the changelog section and the bump (before 1.0). Visible types open or update the release PR: `feat` (✨ Features) and breaking changes bump the minor version, every other visible type bumps the patch. Visible: `feat`, `fix` (🐛 Bug fixes), `perf` (⚡ Performance), `docs` (📝 Documentation), `revert`, and `test`, `refactor`, `chore`, `style` (Other changes). Hidden, so no notes and no release: `ci` (workflows, Dependabot, release config) and `build`. A commit that only touches `AGENTS.md`, `CLAUDE.md` or `.claude/` is skipped by release-please (`exclude-paths` in its config), so `chore` is right for those. Pick the type by what users see: a change users must act on is `feat!` or `fix!`.
 - A breaking change (container name, script path, settings or API shape, a removed feature) puts `!` after the type and a `BREAKING CHANGE:` note in both the commit footer and the PR description (the squash message can be built from either). Write it as a one-line headline of what changed, then what to do: it prints alone under "BREAKING CHANGES", without the commit subject.
 - Config: `release-please-config.json`, `.release-please-manifest.json`, `.github/workflows/release-please.yml`. When a release is created that workflow scans the full history for secrets (`secrets-scan.yml`, TruffleHog), then builds, smoke tests and pushes the multi-arch image to GHCR (`image.yml`) as `X.Y.Z`, `X.Y`, `latest` and, from 1.0, `X`. Both also run on PRs (the image one when the image changes): a failure is real, fix it. By hand, "Secret scan" scans the whole history and "Docker image" pushes a throwaway `test` tag.
 - Every third-party Action is pinned to a commit SHA with its version in a comment. Dependabot moves the pins but not the TruffleHog `version` input: change it with the action tag.
 
 ## Workflow
-The skills in `.claude/skills/` hold the steps; this file holds the rules they rely on.
-- `/triage` reports on the backlog and changes nothing until the owner approves.
-- `/work-issue <N>` reads the issue, works in a worktree on `<type>/<issue>-<slug>` cut from a fresh `origin/main` (e.g. `fix/31-tooltip-z-index`), verifies, commits, then stops with a review package: what was wrong and why, files and commits, before/after evidence, checks run, risks, what could not be verified. It never pushes, and asks first when the issue is vague or needs a decision.
-- `/preview` starts a local copy of the branch for the owner to try.
-- `/ship`, only after the owner approves, pushes to `origin` and opens the PR against `main`: the title is a valid Conventional Commit under 72 characters (it becomes the squash commit; GitHub appends `(#N)`), the body follows `.github/PULL_REQUEST_TEMPLATE.md` and ends with `Resolves #N`, and the workflow sets the label. Then it stops; the owner merges.
+The skills in `.claude/skills/` hold the steps; this file holds the rules they rely on. The default is to act and report: ask only when the direction is unclear or one of the cases below applies. The PR is the review step.
+- `/triage` reports on the backlog and asks before posting anything to an issue.
+- `/work-issue <N>` reads the issue, works in a worktree on `<type>/<issue>-<slug>` cut from a fresh `origin/main` (e.g. `fix/31-tooltip-z-index`; the type is the Conventional Commit type), verifies, commits, then runs `/ship`. It stops at the open PR, with the evidence, checks, risks and unverified items in the PR body.
+- `/preview` starts a local copy of the branch for the owner to try. Optional.
+- `/ship` pushes to `origin` and opens the PR against `main`: the title is a valid Conventional Commit under 72 characters (it becomes the squash commit; GitHub appends `(#N)`), the body follows `.github/PULL_REQUEST_TEMPLATE.md` and ends with `Resolves #N`, and the workflow sets the label. Then it stops; the owner merges.
+
+Stop and ask before building (and before pushing, if it comes up late) when:
+- the direction is unclear or the issue has more than one reasonable reading;
+- the change is a heavy or lengthy refactor;
+- it deletes a significant amount of code or a feature;
+- it changes UX, or adds a feature, that the issue did not ask for. That includes an API or settings shape, anything under "Behavior to keep", a new page or a new setting.
 
 By type (the title's prefix):
 - `fix`: reproduce first (dev stack, browser at 1280 px and 390 px) and keep before-evidence. Find the root cause, make the smallest fix, confirm the repro is gone, check neighbouring behavior. If you cannot reproduce it, say what you tried instead of guessing.
-- `feat`: restate the acceptance criteria in two or three lines. If it changes the API contract, anything under "Behavior to keep", or needs a design call (new page, new setting), stop and ask before building. Follow the front end and API rules and run axe.
-- `docs`, `chore`, `refactor`, `ci`, `agent` and the rest: no behavior change; keep the diff small.
+- `feat`: restate the acceptance criteria in two or three lines, then build. Follow the front end and API rules and run axe.
+- `docs`, `chore`, `refactor`, `ci` and the rest: no behavior change; keep the diff small.
 - Label `question`: draft the answer for the owner. No code.
 - After two honest failed attempts at a fix, stop and report.
 
 Commits (no need to ask), Conventional Commits `type(scope): subject`:
-- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`, and `agent` (agent files only; see Releases).
+- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
 - Scope is the area, lowercase (`nav`, `sidebar`, `services`, `activity`, `jobs`, `settings`, `trailers`, `api`, `engine`). Omit it for repo-wide changes.
 - Subject is imperative, lowercase, no period, under 72 characters. The body says why. Footer `Resolves #N` (finishes the issue) or `Refs #N` (part of it).
-- One logical change per commit; no unrelated edits or formatting churn.
+- One logical commit per working change: each commit leaves the app working. No unrelated edits or formatting churn.
 - Commits are GPG-signed. If signing fails or waits on a passphrase, stop and tell the owner. Never use `--no-verify` or `--no-gpg-sign`.
 
-Never: merge a PR (`gh pr merge`), close an issue by hand, push to `main`, force-push, rewrite pushed history, or commit secrets or media. Ask before: adding a dependency, changing a settings or API shape, deleting a feature, or touching anything outside the issue's scope.
+Never: merge a PR (`gh pr merge`), close an issue by hand, push to `main`, force-push, rewrite pushed history, or commit secrets or media. A new dependency is fine when the platform has no native answer: say why in the PR. Anything outside the issue's scope is a separate issue, not a rider.

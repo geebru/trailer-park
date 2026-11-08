@@ -16,12 +16,13 @@
     {"type": "refactor", "section": "Other changes", "hidden": false},
     {"type": "chore", "section": "Other changes", "hidden": false},
     {"type": "style", "section": "Other changes", "hidden": false},
-    {"type": "agent", "section": "Agent tooling", "hidden": true},
     {"type": "ci", "section": "Other changes", "hidden": true},
     {"type": "build", "section": "Other changes", "hidden": true}
   ],
   "extra-files": ["engine.py", "README.md"],
   "packages": {
-    ".": {}
+    ".": {
+      "exclude-paths": [".claude", "AGENTS.md", "CLAUDE.md"]
+    }
   }
 }

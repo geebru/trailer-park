@@ -1,10 +1,9 @@
 ---
 name: preview
-description: Start a local copy of the current branch for the owner to click through before running /ship. Leaves it running and prints the URL and the pages to look at.
-disable-model-invocation: true
+description: Start a local copy of the current branch for the owner to click through. Optional, since the PR is the review step. Leaves it running and prints the URL and the pages to look at.
 ---
 
-Give the owner a live, locally reachable copy of the branch checked out in this worktree, so they can verify the change by hand before `/ship`. Change no code and commit nothing.
+Give the owner a live, locally reachable copy of the branch checked out in this worktree, so they can verify the change by hand. Change no code and commit nothing.
 
 1. **Check the branch.** Run `git branch --show-current`. If it is `main`, say so and stop: there is nothing to preview. Then `git log --oneline origin/main..HEAD` and `git diff --stat origin/main...HEAD` as separate plain commands, so you know what changed. If there are no commits, say so and stop.
 2. **Start it.** `python dev/stack.py up`. It reuses a healthy stack for this worktree, so running `/preview` twice is fine. If Docker is not running, tell the owner and stop. Read the URL from its output (`python dev/stack.py status` prints it again). Never stop or touch containers you did not start.
