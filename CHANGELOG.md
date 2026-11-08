@@ -1,5 +1,28 @@
 # Trailer Park — Changelog
 
+## [0.11.0](https://github.com/geebru/trailer-park/compare/v0.10.0...v0.11.0) (2026-11-08)
+
+
+### ✨ Features
+
+* **engine:** add a setting to skip unmonitored titles ([#67](https://github.com/geebru/trailer-park/issues/67)) ([dc86d14](https://github.com/geebru/trailer-park/commit/dc86d143bc71e385c9b218f71a7b1e6625b1d1ad))
+* **engine:** log the language of the chosen trailer ([#72](https://github.com/geebru/trailer-park/issues/72)) ([e43f72d](https://github.com/geebru/trailer-park/commit/e43f72d87dae18b1794049820eb3f594ad1f777e)), closes [#7](https://github.com/geebru/trailer-park/issues/7)
+* **settings:** expose and explain the TV season fallback setting ([#66](https://github.com/geebru/trailer-park/issues/66)) ([925adc6](https://github.com/geebru/trailer-park/commit/925adc6e263174ee1df47be1bf760d95614d0e3b))
+* **settings:** use /config/cookies.txt for restricted videos ([#68](https://github.com/geebru/trailer-park/issues/68)) ([b65c09c](https://github.com/geebru/trailer-park/commit/b65c09c61dc36242ecf880e91fc55f521af7e962)), closes [#16](https://github.com/geebru/trailer-park/issues/16)
+* **trailers:** add ability to ignore missing trailers ([#73](https://github.com/geebru/trailer-park/issues/73)) ([d1e5d07](https://github.com/geebru/trailer-park/commit/d1e5d07e6d597032f31c69cafacfd55ce847cbae))
+* **trailers:** grab hand-picked titles as one batch ([#74](https://github.com/geebru/trailer-park/issues/74)) ([2d08713](https://github.com/geebru/trailer-park/commit/2d08713794af96d23559d50e20d7e350da737128))
+
+
+### 📝 Documentation
+
+* shorten the README, move detail to docs/ and add screenshots ([36fdb84](https://github.com/geebru/trailer-park/commit/36fdb842d124d717e445b15b57e7af685e4b6c56)), closes [#11](https://github.com/geebru/trailer-park/issues/11)
+* shorten the README, move detail to docs/, add screenshots ([#76](https://github.com/geebru/trailer-park/issues/76)) ([36fdb84](https://github.com/geebru/trailer-park/commit/36fdb842d124d717e445b15b57e7af685e4b6c56))
+
+
+### Other changes
+
+* **dev:** serve axe from the app origin ([#71](https://github.com/geebru/trailer-park/issues/71)) ([d1d6eb6](https://github.com/geebru/trailer-park/commit/d1d6eb6d4ea66af78073207b4852c04b02536791)), closes [#69](https://github.com/geebru/trailer-park/issues/69)
+
 ## [0.10.0](https://github.com/geebru/trailer-park/compare/v0.9.0...v0.10.0) (2026-11-08)
 
 
