@@ -230,6 +230,8 @@ Every setting also has an environment variable that gives it its initial value: 
 
 Trailer Park has no authentication of its own. Keep it on a trusted network, or put it behind something that authenticates before you expose it beyond your LAN. The config directory contains your API keys and the Discord webhook URL. They are never returned by the API, and the app removes them from log lines, job logs, Activity entries and error messages before they are written.
 
+Every response carries `Content-Security-Policy` (the interface loads only from its own origin and cannot be put in a frame), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and `X-Frame-Options: DENY`. If you run it behind a reverse proxy, let these headers through.
+
 ---
 
 ## License

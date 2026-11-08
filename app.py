@@ -14,6 +14,29 @@ app = Flask(__name__)
 app.register_blueprint(api_bp)
 
 
+# ── Security headers ──────────────────────────────────────────────────────
+# The front end is vanilla ES modules with self-hosted fonts, no CDN, no inline script or style and
+# no outside images, so one strict policy fits every response (HTML, /api and static files).
+# upgrade-insecure-requests is left out on purpose: this app is normally reached over plain HTTP on a LAN.
+SECURITY_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; "
+        "font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; "
+        "form-action 'self'; frame-ancestors 'none'"
+    ),
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "X-Frame-Options": "DENY",       # older browsers; frame-ancestors covers the rest
+}
+
+
+@app.after_request
+def add_security_headers(response):
+    for name, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(name, value)
+    return response
+
+
 # ── Web UI ────────────────────────────────────────────────────────────────
 # One HTML shell; the front end routes between Overview, Trailers, Settings and Activity
 # on the client. Everything else is the JSON API under /api (api.py).

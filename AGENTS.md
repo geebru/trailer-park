@@ -19,6 +19,7 @@ HTML and CSS expert, comfortable enough in JS for design-system work, no hard to
 - Style only through tokens in `css/tokens.css` (palette, then semantic layer). Theme is Moss (`data-theme`).
 - Icons: Font Awesome Free SVGs in `js/icons.js`. Fonts are self-hosted.
 - Modals use native `<dialog>` (`dialog.js`). Filters live in the URL. Keep a11y clean (axe AA, visible focus).
+- `app.py` sends a strict Content-Security-Policy on every response: no inline `<script>`, `<style>` or `style=` attributes, no `eval`, nothing from another origin. Use classes, or `el.style.x = …` (allowed). Loading from a new origin means changing the policy on purpose, in `SECURITY_HEADERS`.
 - A button that can be disabled uses `setDisabled(button, reason)` from `tip.js` (empty reason enables it), never the `disabled` attribute, so every disabled action explains itself on hover, focus and tap. Native `disabled` stays for form fields, with a visible hint.
 - Add a page: route in `main.js`, module in `pages/` exporting `title` and `mount(container, {query, navigate})` (may return cleanup).
 
