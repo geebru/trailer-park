@@ -13,7 +13,7 @@ export const title = "Settings";
 const SECTIONS = [
   { id: "connections", label: "Connections", icon: "link", blurb: "Connect any number of Radarr and Sonarr services." },
   { id: "naming", label: "Naming", icon: "folder", blurb: "Choose where trailers live and how downloaded files are named." },
-  { id: "scoring", label: "Scoring", icon: "wand-magic-sparkles", blurb: "Keywords used to rank potential trailer matches." },
+  { id: "behavior", label: "Behavior", icon: "sliders", blurb: "How trailers are matched and what happens when TMDB has nothing suitable." },
   { id: "tmdb", label: "TMDB", icon: "key", blurb: "Credentials used to find trailers for each title." },
   { id: "ytdlp", label: "Downloads", icon: "terminal", blurb: "Video quality, file type, and the yt-dlp downloader." },
   { id: "automation", label: "Automation", icon: "arrows-rotate", blurb: "How often connected services sync and how long activity is kept." },
@@ -61,7 +61,8 @@ const card = (...kids) => h("div", { class: "card" }, kids);
 /* ── Page ──────────────────────────────────────────────────────────── */
 
 export function mount(container, { query, navigate }) {
-  let section = SECTIONS.some((s) => s.id === query.get("section")) ? query.get("section") : "connections";
+  const wanted = query.get("section") === "scoring" ? "behavior" : query.get("section"); // "scoring" was renamed
+  let section = SECTIONS.some((s) => s.id === wanted) ? wanted : "connections";
   let server = null;                 // last settings from the API
   let draft = {};                    // editable copy of public settings
   let secrets = {};                  // {tmdb_api_key, discord_webhook_url, clear_*}
@@ -123,7 +124,7 @@ export function mount(container, { query, navigate }) {
     paintNav();
     replace(headEl, h("div", {}, h("h2", { id: "settings-title", class: "panel__title" }, def.label), h("p", { class: "settings__blurb" }, def.blurb)));
     clearInterval(nextTimer);
-    replace(bodyEl, ({ connections, naming, scoring, tmdb, ytdlp: downloads, automation, notifications }[section])());
+    replace(bodyEl, ({ connections, naming, behavior, tmdb, ytdlp: downloads, automation, notifications }[section])());
     paintFoot();
   }
 
@@ -220,10 +221,10 @@ export function mount(container, { query, navigate }) {
       h("div", { class: "grid2" }, field("Trailer folder", "Leave blank to save beside the media file", folder.el, folder.id), field("File name template", null, tpl.el, tpl.id)),
       card(h("div", { class: "card__title" }, icon("folder", "icon tone-accent"), "Output preview"), preview, note,
         h("p", { class: "hint" }, "Files that don't match this template get a ", h("span", { class: "tone-warning" }, "Name mismatch"), " tag. Titles with more than one trailer get a ", h("span", { class: "tone-info" }, "Multiple found"), " tag; having several is allowed and isn't an error.")),
-      h("div", {}, h("div", { class: "label" }, "Available variables"), h("div", { class: "chips" }, ["{title}", "{year}"].map((t2) => h("span", { class: "chip mono" }, t2)))));
+      group("Available variables", null, h("div", { class: "chips" }, ["{title}", "{year}"].map((t2) => h("span", { class: "chip mono" }, t2)))));
   }
 
-  /* ── Scoring ─────────────────────────────────────────────────────── */
+  /* ── Behavior ────────────────────────────────────────────────────── */
   function termEditor(key, label, tone, caption) {
     const wrap = h("div", { class: "terms" });
     const terms = () => String(draft[key] || "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -242,6 +243,8 @@ export function mount(container, { query, navigate }) {
     render();
     return h("div", {}, h("div", { class: "label" }, label), h("div", { class: `hint tone-${tone}` }, caption), wrap);
   }
+  const group = (heading, blurb, ...kids) => h("section", { class: "group" },
+    h("div", {}, h("h3", { class: "group__title" }, heading), blurb ? h("p", { class: "hint" }, blurb) : null), ...kids);
   function seasonFallback() {
     const sel = selectInput(SEASON_FALLBACK, draft.season_fallback, (v) => setDraft("season_fallback", v));
     const help = h("div", { class: "hint", id: `${sel.id}-help` },
@@ -254,11 +257,13 @@ export function mount(container, { query, navigate }) {
     sel.el.setAttribute("aria-describedby", help.id);
     return h("div", { class: "stack stack--tight" }, h("div", { class: "narrow" }, wrap), help);
   }
-  function scoring() {
-    return h("div", { class: "stack" },
-      h("div", { class: "grid2" }, termEditor("preferred_terms", "Positive keywords", "success", "Increase score"), termEditor("excluded_terms", "Negative keywords", "danger", "Reduce score")),
-      seasonFallback(),
-      toggle("YouTube search fallback", "When TMDB has no suitable trailer, search YouTube directly. Results are scored with the same keywords.", draft.youtube_search === "on", (v) => setDraft("youtube_search", v ? "on" : "off")));
+  function behavior() {
+    return h("div", { class: "stack stack--loose" },
+      group("Keywords", "Trailer titles are scored against these words to pick the best match.",
+        h("div", { class: "grid2" }, termEditor("preferred_terms", "Positive keywords", "success", "Increase score"), termEditor("excluded_terms", "Negative keywords", "danger", "Reduce score"))),
+      group("Fallbacks", "What to try when TMDB has no suitable trailer for a title.",
+        seasonFallback(),
+        toggle("YouTube search fallback", "Search YouTube directly. Results are scored with the same keywords.", draft.youtube_search === "on", (v) => setDraft("youtube_search", v ? "on" : "off"))));
   }
 
   /* ── Secrets (TMDB, Discord) ─────────────────────────────────────── */
@@ -349,7 +354,7 @@ export function mount(container, { query, navigate }) {
   /* ── Notifications ───────────────────────────────────────────────── */
   const notifications = () => h("div", { class: "stack" },
     secretField("discord_webhook_url", "Discord webhook URL", "Optional. Must be a discord.com webhook.", "discord", "Send test"),
-    h("div", {}, h("div", { class: "label" }, "Events to send"),
+    group("Events to send", null,
       h("div", { class: "stack stack--tight" },
         toggle("Trailer downloaded", "Send the title, source and file name after a successful download.", draft.notify_success === "on", (v) => setDraft("notify_success", v ? "on" : "off")),
         toggle("Grab failed", "Notify when a grab fails, such as no suitable match or a yt-dlp error. The message includes the reason.", draft.notify_failure === "on", (v) => setDraft("notify_failure", v ? "on" : "off")))),

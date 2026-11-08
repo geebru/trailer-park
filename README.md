@@ -124,7 +124,7 @@ Settings are saved with **Save changes** (or **Discard**). Connections are saved
 |---|---|
 | **Connections** | Radarr and Sonarr instances: name, type, base URL (no username or password in it), API key. Editing a connection keeps its saved key unless you point it at a different server, which needs the key entered again. Radarr connections feed Movies, Sonarr connections feed Shows. |
 | **Naming** | **Media folder** (default `/data/media`). **Trailer folder** (default `trailers`; leave blank to save beside the media file). **File name template** (default `{title} ({year}).trailer`; variables `{title}` and `{year}`). A live **Output preview**. |
-| **Scoring** | **Positive keywords** and **Negative keywords** (see below), the **TV season fallback** (see below), and the **YouTube search fallback** (off by default). |
+| **Behavior** | **Positive keywords** and **Negative keywords** (see below), the **TV season fallback** (see below), and the **YouTube search fallback** (off by default). |
 | **TMDB** | Your TMDB Read Access Token, with **Test key**. |
 | **Downloads** | yt-dlp version and updates. **Resolution** (maximum: 480p, 720p, **1080p**, 4K), **Output container** (**mkv** or mp4; mp4 prefers H.264 so files play on more devices) and **Concurrent downloads** (**1** to 4). Changes only affect new downloads. |
 | **Automation** | **Sync interval** (Off, **5**, 10, 15, 30 minutes, 1, 6 or 24 hours), **Sync now**, and **Activity retention** (60, **90** or 180 days, 1 year, or forever). |
@@ -153,9 +153,9 @@ The download limit applies across the web interface, batches, the watcher and th
 4. Candidates are ordered spoiler-free first (for shows, a title naming a later season or a "final season" sorts behind the rest, but stays usable if nothing else exists), then by score, then full trailers over teasers, then official, then English.
 5. The best candidate is downloaded. If YouTube says it is unavailable (removed, private, region-blocked, age-restricted, members-only), the next candidate is tried, up to five.
 
-**Shows with no show-level trailer** fall back to season trailers. `first` (the default) tries season 1, then season 2. `latest` tries the latest season, the one before it, then season 1. `off` tries none. It is used only when TMDB lists no show-level trailer, makes at most three lookups and skips specials. Change it under Settings → Scoring → **TV season fallback**, or set `SEASON_FALLBACK` (`first`, `latest` or `off`) for the first start. A trailer taken from a season is noted in Activity ("trailer from season 2 of the show").
+**Shows with no show-level trailer** fall back to season trailers. `first` (the default) tries season 1, then season 2. `latest` tries the latest season, the one before it, then season 1. `off` tries none. It is used only when TMDB lists no show-level trailer, makes at most three lookups and skips specials. Change it under Settings → Behavior → **TV season fallback**, or set `SEASON_FALLBACK` (`first`, `latest` or `off`) for the first start. A trailer taken from a season is noted in Activity ("trailer from season 2 of the show").
 
-**YouTube search fallback** (Settings → Scoring, off by default). When TMDB has no usable trailer, or every TMDB trailer is unavailable, Trailer Park searches YouTube for `<title> <year> trailer` (top 15 results, metadata only) and scores the results with the same keywords. A title containing the right year ranks first, which separates an original from a remake with the same name.
+**YouTube search fallback** (Settings → Behavior, off by default). When TMDB has no usable trailer, or every TMDB trailer is unavailable, Trailer Park searches YouTube for `<title> <year> trailer` (top 15 results, metadata only) and scores the results with the same keywords. A title containing the right year ranks first, which separates an original from a remake with the same name.
 
 Downloads go to a temporary file and replace an existing trailer only after they succeed.
 
