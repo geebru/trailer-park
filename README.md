@@ -126,7 +126,7 @@ Settings are saved with **Save changes** (or **Discard**). Connections are saved
 | **Naming** | **Media folder** (default `/data/media`). **Trailer folder** (default `trailers`; leave blank to save beside the media file). **File name template** (default `{title} ({year}).trailer`; variables `{title}` and `{year}`). A live **Output preview**. |
 | **Scoring** | **Positive keywords** and **Negative keywords** (see below), and the **YouTube search fallback** (off by default). |
 | **TMDB** | Your TMDB Read Access Token, with **Test key**. |
-| **Downloads** | yt-dlp version and updates. **Resolution** (maximum: 480p, 720p, **1080p**, 4K), **Output container** (**mkv** or mp4; mp4 prefers H.264 so files play on more devices) and **Concurrent downloads** (**1** to 4). Changes only affect new downloads. |
+| **Downloads** | yt-dlp version and updates, and whether the [cookies file](#yt-dlp) is in use. **Resolution** (maximum: 480p, 720p, **1080p**, 4K), **Output container** (**mkv** or mp4; mp4 prefers H.264 so files play on more devices) and **Concurrent downloads** (**1** to 4). Changes only affect new downloads. |
 | **Automation** | **Sync interval** (Off, **5**, 10, 15, 30 minutes, 1, 6 or 24 hours), **Sync now**, and **Activity retention** (60, **90** or 180 days, 1 year, or forever). |
 | **Notifications** | An optional Discord webhook URL (only `https://discord.com/api/webhooks/...` addresses are accepted) with **Send test** (a successful test saves it), and toggles for **Trailer downloaded** and **Grab failed** (both on by default). Batches and Sync now send one summary instead of one message per title. |
 
@@ -164,6 +164,8 @@ Downloads go to a temporary file and replace an existing trailer only after they
 ## yt-dlp
 
 **Settings → Downloads** shows the active yt-dlp version and whether a newer one is available. Trailer Park checks the official yt-dlp releases about once a day, but never installs automatically. **Update** downloads the official release file, verifies it against the release `SHA2-256SUMS`, and stores it at `/config/bin/yt-dlp`. That copy is used immediately and after the container is recreated. The version bundled in the image stays as the fallback.
+
+**Age-restricted or region-gated videos.** Some trailers cannot be downloaded without a signed-in YouTube session. To give yt-dlp one, export your YouTube cookies in Netscape format (a browser extension such as "Get cookies.txt LOCALLY" does this) and save them as `cookies.txt` in your `/config` volume. When the file exists, Trailer Park passes it to yt-dlp for downloads and searches; without it nothing changes. There is no setting: **Settings → Downloads** shows the path and whether the file is in use, and the contents are never shown or logged. Each download works on a private temporary copy, so the file can be mounted read-only and yt-dlp never rewrites it. If the file exists but cannot be read, downloads fail with a message saying so. Cookies from your own account can get it flagged by YouTube, so a throwaway account is safer.
 
 ---
 
@@ -220,6 +222,7 @@ The `/config` volume holds the app's state. Do not commit it to a public reposit
 | `watch-state.json` | What the watcher has already seen |
 | `ytdlp-status.json` | The last yt-dlp update check |
 | `bin/yt-dlp` | The updated yt-dlp copy, only after an in-app update |
+| `cookies.txt` | Optional YouTube cookies for yt-dlp (you add it; see [yt-dlp](#yt-dlp)) |
 | `download-slots/` | Lock files for the concurrent download limit |
 
 Every setting also has an environment variable that gives it its initial value: the setting's name in capitals, such as `TMDB_API_KEY`, `MEDIA_ROOT`, `VIDEO_QUALITY`, `WATCH_INTERVAL_MINUTES`, `SEASON_FALLBACK` or `YOUTUBE_SEARCH`. Once settings have been saved they live in `settings.json` and that file wins, so use the interface after the first save.

@@ -16,7 +16,9 @@ import json
 import logging
 import os
 import re
+import shutil
 import subprocess
+import tempfile
 import threading
 import time
 import urllib.parse
@@ -55,6 +57,12 @@ YTDLP_OVERRIDE = os.environ.get(
 YTDLP_STATUS_FILE = os.environ.get(
     "YTDLP_STATUS_FILE",
     os.path.join(CONFIG_DIR, "ytdlp-status.json")
+)
+# Optional Netscape cookies file for age-restricted or region-gated videos.
+# Fixed name, no setting: drop it in /config. The contents are only copied for yt-dlp, never parsed or logged.
+YTDLP_COOKIES_FILE = os.environ.get(
+    "YTDLP_COOKIES_FILE",
+    os.path.join(CONFIG_DIR, "cookies.txt")
 )
 YTDLP_CHECK_INTERVAL_SECONDS = 24 * 60 * 60
 YTDLP_MONITOR_INTERVAL_SECONDS = 60 * 60
@@ -1457,6 +1465,47 @@ def ytdlp_binary():
     return "yt-dlp"
 
 
+class CookiesError(RuntimeError):
+    pass
+
+
+def cookies_status():
+    """Whether the cookies file is in use. Reports the path, never the contents."""
+    if not os.path.exists(YTDLP_COOKIES_FILE):
+        state = "none"
+    elif os.path.isfile(YTDLP_COOKIES_FILE) and os.access(YTDLP_COOKIES_FILE, os.R_OK):
+        state = "ok"
+    else:
+        state = "unreadable"
+    return {"path": YTDLP_COOKIES_FILE, "state": state}
+
+
+@contextlib.contextmanager
+def ytdlp_cookie_args():
+    """yt-dlp arguments for the cookies file, or none when there is no file.
+
+    yt-dlp rewrites its cookies file on exit, which fails on a read-only mount
+    and can corrupt the file when downloads run side by side, so each run gets
+    a private copy (mode 0600) that is removed afterwards."""
+    if cookies_status()["state"] == "none":
+        yield []
+        return
+    fd, temp_path = tempfile.mkstemp(prefix="trailer-park-cookies-")
+    try:
+        try:
+            with os.fdopen(fd, "wb") as out, open(YTDLP_COOKIES_FILE, "rb") as src:
+                shutil.copyfileobj(src, out)
+        except OSError as e:
+            raise CookiesError(
+                f"Cannot read the cookies file at {YTDLP_COOKIES_FILE} "
+                f"({e.strerror or 'unreadable'}). Fix its permissions, make it a file, or remove it."
+            ) from None
+        yield ["--cookies", temp_path]
+    finally:
+        with contextlib.suppress(OSError):
+            os.remove(temp_path)
+
+
 def command_version(binary):
     try:
         result = subprocess.run(
@@ -1589,6 +1638,7 @@ def ytdlp_ui_status():
     return {
         **versions,
         **status,
+        "cookies": cookies_status(),
         "up_to_date": bool(latest) and versions.get("active") == latest
     }
 
@@ -1815,6 +1865,15 @@ def format_selector(height, ext):
 
 
 def download(yt_id, out_path_noext):
+    """Download atomically, using the cookies file when there is one."""
+    try:
+        with ytdlp_cookie_args() as cookie_args:
+            return download_with(yt_id, out_path_noext, cookie_args)
+    except CookiesError as e:
+        return {"ok": False, "duration": 0, "error": str(e)}
+
+
+def download_with(yt_id, out_path_noext, cookie_args):
     """Download atomically. Existing trailer stays in place until success."""
 
     directory = os.path.dirname(out_path_noext)
@@ -1835,6 +1894,7 @@ def download(yt_id, out_path_noext):
         ext,
         "--no-playlist",
         "--newline",
+        *cookie_args,
         "-o",
         f"{temp_base}.%(ext)s",
         f"https://www.youtube.com/watch?v={yt_id}"
@@ -2529,15 +2589,17 @@ def wrong_year_in(name, year_text, title=""):
 
 def run_ytdlp_search(query, count=SEARCH_RESULTS):
     """Return YouTube search entries (metadata only, nothing downloaded)."""
-    cmd = [
-        ytdlp_binary(),
-        "--flat-playlist",
-        "--dump-single-json",
-        "--no-warnings",
-        f"ytsearch{count}:{query}"
-    ]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=90)
+        with ytdlp_cookie_args() as cookie_args:
+            cmd = [
+                ytdlp_binary(),
+                "--flat-playlist",
+                "--dump-single-json",
+                "--no-warnings",
+                *cookie_args,
+                f"ytsearch{count}:{query}"
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=90)
     except subprocess.TimeoutExpired:
         raise RuntimeError("YouTube search timed out.")
     if result.returncode != 0:
