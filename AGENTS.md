@@ -37,6 +37,7 @@ HTML and CSS expert, comfortable enough in JS for design-system work, no hard to
 - `matches_naming` ignores the extension, so changing mkv/mp4 never flags "Name mismatch".
 - Batches: one at a time, children are normal jobs, one Discord summary.
 - The automatic trigger is the API watcher only (no webhooks).
+- `only_monitored` (off by default) makes the watcher and batches skip titles the Arr has unmonitored. Grabbing by hand is never blocked.
 
 ## Checking changes
 - Python: `python -m py_compile engine.py api.py app.py jobs.py library_cache.py`, then exercise endpoints with Flask's test client or the dev stack. `engine.py` imports `fcntl`, so it only runs in Docker/Linux, not natively on Windows.
