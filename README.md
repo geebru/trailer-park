@@ -57,6 +57,8 @@ The image is published for `linux/amd64` and `linux/arm64`. Tags are `X.Y.Z`, `X
 
 `/health` always answers, so Docker health checks work with any name.
 
+The container runs as root unless you set `user:`, and running it unprivileged is recommended (see Security). If you add `user:` to an install that already ran as root, `./config` still belongs to root and the app cannot save anything there: change it once, for example `sudo chown -R 1000:1000 config`, with the IDs you chose.
+
 ### Upgrade
 
 ```bash
@@ -243,6 +245,8 @@ Every setting also has an environment variable that gives it its initial value: 
 **Host names.** A request is refused unless it reaches the app by an expected name (`ALLOWED_HOSTS`, see Install). That stops a web page on another site from pointing its own domain at your server and driving the API through your browser (DNS rebinding). It does not replace a login.
 
 **The config directory is sensitive.** `/config/settings.json` holds your TMDB token, the Discord webhook URL and the Radarr and Sonarr API keys in plain text, readable only by its owner, as the Arrs do with theirs. The app never returns or logs them, but a copy of the directory exposes every key. Keep backups private and never post it in an issue.
+
+**Run it unprivileged.** The container runs as root unless you set `user:`. yt-dlp and ffmpeg handle data from the internet, so a flaw in either would get the whole container. Set `user:` to an ID that can write `/config` and your media folders (see User mapping under Install). The image works the same either way.
 
 **Reporting a vulnerability.** See [SECURITY.md](SECURITY.md).
 

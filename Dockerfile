@@ -14,6 +14,10 @@ RUN apk add --no-cache \
 
 WORKDIR /app
 
+# The image runs as root unless compose sets `user:`. A user ID with no passwd entry gets HOME=/, which it
+# cannot write, so point yt-dlp's and deno's caches (the EJS solver, among others) somewhere any user can.
+ENV XDG_CACHE_HOME=/tmp/.cache
+
 # Flask and Waitress are pinned in requirements.txt. yt-dlp is not: the app updates it from Settings.
 COPY requirements.txt .
 RUN pip install --no-cache-dir --break-system-packages -r requirements.txt yt-dlp
