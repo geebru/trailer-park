@@ -21,8 +21,6 @@
   ],
   "extra-files": ["engine.py", "README.md"],
   "packages": {
-    ".": {
-      "exclude-paths": [".claude", "AGENTS.md", "CLAUDE.md"]
-    }
+    ".": {}
   }
 }
