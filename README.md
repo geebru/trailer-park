@@ -7,7 +7,7 @@ Downloads local trailers for your Radarr and Sonarr titles. It looks each title 
 
 Current release: **v0.9.0** <!-- x-release-please-version -->
 
-[Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [License](LICENSE)
+[Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [License](LICENSE)
 
 ## What it does
 
@@ -228,7 +228,11 @@ Every setting also has an environment variable that gives it its initial value: 
 
 ## Security
 
-Trailer Park has no authentication of its own. Keep it on a trusted network, or put it behind something that authenticates before you expose it beyond your LAN. The config directory contains your API keys and the Discord webhook URL. They are never returned by the API, and the app removes them from log lines, job logs, Activity entries and error messages before they are written.
+**No login.** Trailer Park has no authentication of its own (a login is tracked in [#15](https://github.com/geebru/trailer-park/issues/15)). Anyone who can reach its port can change settings, start grabs and delete the trailers it manages. Keep it on a trusted network and off the public internet. If you need it from outside your LAN, use a VPN, or a reverse proxy that authenticates before it forwards a request.
+
+**The config directory is sensitive.** `/config/settings.json` holds your TMDB token, the Discord webhook URL and the Radarr and Sonarr API keys in plain text, readable only by its owner. The app never returns them from the API, and removes them from log lines, job logs, Activity entries and error messages before they are written. That does not protect a copy of the directory: a backup, a shared support folder or a mis-set volume permission exposes every key. Treat `/config` like a password file, and never post it in an issue.
+
+**Reporting a vulnerability.** See [SECURITY.md](SECURITY.md).
 
 ---
 
