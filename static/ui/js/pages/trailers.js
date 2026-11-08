@@ -5,6 +5,7 @@ import { number } from "../format.js";
 import { store } from "../store.js";
 import { openManual, openFiles, openRename, openGrabAll, startJob } from "../dialogs.js";
 import { setDisabled } from "../tip.js";
+import { toast } from "../toast.js";
 import { pageHeading, notice } from "./common.js";
 
 export const title = "Trailers";
@@ -42,6 +43,7 @@ export function mount(container, { query, navigate }) {
   let timer = null;
   let typing = null;
   let stopped = false;
+  const picked = new Map();   // "connection:id" -> {connection, id} of missing titles chosen for a batch; survives paging, not filters
 
   function url(extra = {}) {
     const s = { ...state, ...extra };
@@ -58,6 +60,7 @@ export function mount(container, { query, navigate }) {
   }
   function change(patch) {
     Object.assign(state, { page: 1 }, patch);
+    picked.clear();
     history.replaceState({}, "", url());
     load();
   }
@@ -76,6 +79,7 @@ export function mount(container, { query, navigate }) {
   const viewEl = h("select", { class: "select", "aria-label": "Filter by trailer status", onchange: (e) => change({ view: e.target.value }) },
     VIEWS.map((v) => h("option", { value: v.value }, v.label)));
   const listEl = h("ul", { class: "trailer-list" });
+  const selectEl = h("div", { class: "trailer-select", hidden: true });
   const footEl = h("div", { class: "trailer-foot" });
 
   const heading = pageHeading("Trailers", actionsEl);
@@ -83,6 +87,7 @@ export function mount(container, { query, navigate }) {
     h("section", { class: "panel trailers", "aria-label": "Library" },
       h("div", { class: "trailers__bar" }, tabsEl,
         h("div", { class: "trailers__filters" }, h("label", { class: "search" }, icon("magnifying-glass"), searchEl), connEl, rootEl, viewEl)),
+      selectEl,
       h("div", { class: "trailer-table" },
         h("div", { class: "trailer-head", "aria-hidden": "true" }, h("span", {}, "Title"), h("span", {}, "Trailer"), h("span", {}, "Actions")),
         listEl),
@@ -137,6 +142,52 @@ export function mount(container, { query, navigate }) {
     replace(bannersEl, out);
   }
 
+  const keyOf = (item) => `${item.connection_id}:${item.id}`;
+  const refOf = (item) => ({ connection: item.connection_id, id: item.id });
+  const selectable = (item) => item.presence === "missing" && !activeJob(item);
+
+  function toggle(item, on) {
+    on ? picked.set(keyOf(item), refOf(item)) : picked.delete(keyOf(item));
+    renderSelect();
+    updateRowChecks();
+  }
+
+  function updateRowChecks() {
+    for (const box of listEl.querySelectorAll("input[data-key]")) box.checked = picked.has(box.dataset.key);
+  }
+
+  async function grabSelected() {
+    const items = [...picked.values()];
+    if (!items.length) return;
+    try {
+      const { batch } = await api.post("/batches", { items });
+      store.set("batch", batch);
+      toast(`Started grabbing ${number(batch.total)} trailer${batch.total === 1 ? "" : "s"}.`, "success");
+      picked.clear();
+      load();
+    } catch (e) { toast(e.message, "danger", 8000); }
+  }
+
+  function renderSelect() {
+    const rows = data.items.filter(selectable);
+    selectEl.hidden = !rows.length && !picked.size;
+    if (selectEl.hidden) return;
+    const onPage = rows.filter((i) => picked.has(keyOf(i))).length;
+    const all = h("input", { type: "checkbox", id: "select-page", checked: rows.length > 0 && onPage === rows.length,
+      onchange: (e) => { for (const i of rows) e.target.checked ? picked.set(keyOf(i), refOf(i)) : picked.delete(keyOf(i)); renderSelect(); updateRowChecks(); } });
+    all.indeterminate = onPage > 0 && onPage < rows.length;
+    if (!rows.length) all.disabled = true;
+    const batchRunning = store.get("batch")?.status === "running";
+    const grab = h("button", { type: "button", class: "btn btn--primary btn--sm", onclick: grabSelected }, icon("download"), picked.size ? `Grab ${number(picked.size)} selected` : "Grab selected");
+    setDisabled(grab, batchRunning ? "A batch is already running. Wait for it to finish or cancel it in the sidebar." : !picked.size && "Select at least one title with no trailer first");
+    replace(selectEl,
+      h("label", { class: "trailer-select__all", for: "select-page" }, all, h("span", {}, "Select all missing on this page")),
+      h("div", { class: "trailer-select__actions" },
+        picked.size ? h("span", { class: "muted", role: "status" }, `${number(picked.size)} selected`) : null,
+        picked.size ? h("button", { type: "button", class: "btn btn--tertiary btn--sm", onclick: () => { picked.clear(); renderSelect(); updateRowChecks(); } }, "Clear") : null,
+        grab));
+  }
+
   function actionButtons(item) {
     const job = activeJob(item);
     if (job) {
@@ -151,11 +202,19 @@ export function mount(container, { query, navigate }) {
          h("button", { type: "button", class: "btn btn--tertiary btn--sm", onclick: () => openFiles(item, { onChange: load }) }, icon("folder"), "Files")];
   }
 
+  function check(item) {
+    if (!selectable(item)) return h("span", { class: "trailer-row__check", "aria-hidden": "true" });
+    const key = keyOf(item);
+    return h("label", { class: "trailer-row__check" },
+      h("input", { type: "checkbox", "aria-label": `Select ${item.title}${item.year ? ` (${item.year})` : ""}`, dataset: { key }, checked: picked.has(key),
+        onchange: (e) => toggle(item, e.target.checked) }));
+  }
+
   function row(item) {
     const missing = item.presence === "missing";
     return h("li", { class: "trailer-row" },
       h("div", { class: "trailer-row__title" },
-        h("div", { class: "trailer-row__name" }, icon(item.type === "series" ? "tv" : "film", "icon tone-neutral"), h("span", {}, item.title)),
+        h("div", { class: "trailer-row__name" }, check(item), icon(item.type === "series" ? "tv" : "film", "icon tone-neutral"), h("span", {}, item.title)),
         h("div", { class: "trailer-row__meta" }, [item.year, item.connection_name].filter(Boolean).join(" · "))),
       h("div", { class: "trailer-row__file" }, missing
         ? h("span", { class: "flag tone-warning" }, icon("triangle-exclamation"), "No trailer file")
@@ -168,8 +227,13 @@ export function mount(container, { query, navigate }) {
   }
 
   function renderRows() {
+    // Job polling repaints the rows; keep keyboard focus on the checkbox the user is on.
+    const focused = document.activeElement?.dataset?.key;
+    listEl.classList.toggle("trailer-list--select", data.items.some(selectable));
     replace(listEl, data.items.length ? data.items.map(row)
       : h("li", { class: "activity-empty" }, data.scan.state !== "ready" ? "Scanning…" : "No titles match your filters."));
+    if (focused) listEl.querySelector(`input[data-key="${focused}"]`)?.focus();
+    renderSelect();
     const pages = Math.max(1, Math.ceil(data.total / data.per_page));
     const from = data.total ? (data.page - 1) * data.per_page + 1 : 0;
     const to = Math.min(data.total, data.page * data.per_page);
@@ -208,6 +272,7 @@ export function mount(container, { query, navigate }) {
 
   // A running job disappearing from the list means an item changed; reload so the row catches up.
   let before = (store.get("jobs") || []).length;
+  const unsubBatch = store.subscribe("batch", () => { if (data) renderSelect(); });
   const unsubscribe = store.subscribe("jobs", () => {
     const now = (store.get("jobs") || []).length;
     const finished = now < before;
@@ -216,5 +281,5 @@ export function mount(container, { query, navigate }) {
   });
   renderTabs();
   load();
-  return () => { stopped = true; clearTimeout(timer); clearTimeout(typing); unsubscribe(); };
+  return () => { stopped = true; clearTimeout(timer); clearTimeout(typing); unsubscribe(); unsubBatch(); };
 }

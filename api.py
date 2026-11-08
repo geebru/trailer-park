@@ -330,15 +330,34 @@ def create_batch():
         return error("unknown_connection", "No such connection.")
     if media_type and media_type not in TYPES:
         return error("bad_type", "type must be 'movie' or 'series'.")
-    snaps, _errors, scan = cache.get_view(media_type, connection_id)
-    if scan["state"] != "ready" and not snaps:
-        return error("scanning", "The library is still being scanned. Try again in a moment.", 409)
-    missing = [s for s in snaps if s["presence"] == "missing"]
-    if not missing:
-        return error("nothing_to_do", "No missing trailers in this scope.", 409)
-    scope = (E.get_connection(connection_id)["name"] if connection_id else "All libraries")
-    if media_type:
-        scope += " (movies)" if media_type == "movie" else " (series)"
+    picked = data.get("items")
+    if picked is not None:
+        # A hand-picked selection instead of a whole scope. Titles that are gone or no longer
+        # missing are skipped rather than failing the request: the page may be slightly stale.
+        if (not isinstance(picked, list) or not picked
+                or not all(isinstance(p, dict) and isinstance(p.get("connection"), str)
+                           and type(p.get("id")) is int for p in picked)):
+            return error("bad_items", "items must be a non-empty list of {connection, id}.")
+        seen, missing = set(), []
+        for p in picked:
+            key = (p["connection"], p.get("id"))
+            snap = None if key in seen else cache.get_item(*key)
+            seen.add(key)
+            if snap and snap["presence"] == "missing":
+                missing.append(snap)
+        if not missing:
+            return error("nothing_to_do", "None of the selected titles are missing a trailer.", 409)
+        scope = f"{len(missing)} selected"
+    else:
+        snaps, _errors, scan = cache.get_view(media_type, connection_id)
+        if scan["state"] != "ready" and not snaps:
+            return error("scanning", "The library is still being scanned. Try again in a moment.", 409)
+        missing = [s for s in snaps if s["presence"] == "missing"]
+        if not missing:
+            return error("nothing_to_do", "No missing trailers in this scope.", 409)
+        scope = (E.get_connection(connection_id)["name"] if connection_id else "All libraries")
+        if media_type:
+            scope += " (movies)" if media_type == "movie" else " (series)"
     try:
         batch = jobs.start_batch(scope, [
             {"connection_id": s["connection_id"], "id": s["id"],
