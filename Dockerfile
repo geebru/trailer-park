@@ -1,4 +1,4 @@
-FROM python:3.12-alpine
+FROM python:3.15-alpine
 
 LABEL org.opencontainers.image.title="Trailer Park" \
       org.opencontainers.image.description="Downloads local trailers for Radarr and Sonarr titles using TMDB and yt-dlp." \
