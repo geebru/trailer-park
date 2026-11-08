@@ -2799,12 +2799,22 @@ def short_ytdlp_error(error):
     return (errors[-1] if errors else (lines[-1] if lines else "yt-dlp failed."))[:300]
 
 
+def language_label(candidate):
+    """TMDB language tag of a candidate, for logs and Activity."""
+    if candidate.get("via_search"):
+        return "unknown"
+    return candidate.get("language") or "untagged"
+
+
 def try_candidates(candidates, out, attempts):
     """Download the first available candidate. Returns (result, best)."""
     result, best = None, None
     for candidate in candidates[:MAX_CANDIDATE_ATTEMPTS]:
         best = candidate
-        log_step(f"Trying {candidate['name']} ({candidate['key']})")
+        log_step(
+            f"Trying {candidate['name']} ({candidate['key']}, "
+            f"language: {language_label(candidate)})"
+        )
         result = download(candidate["key"], out)
         if result.get("cancelled"):
             break
@@ -2909,7 +2919,8 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
     if dry_run:
         for candidate in scored:
             log.info(
-                f"  [+{candidate['score']}] {candidate['name']} — "
+                f"  [+{candidate['score']}] {candidate['name']} "
+                f"({language_label(candidate)}) — "
                 f"https://youtu.be/{candidate['key']}"
                 + (" (YouTube search)" if candidate.get("via_search") else "")
             )
@@ -2953,6 +2964,7 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
         if via_search:
             channel = best.get("channel") or "unknown channel"
             notes.append(f"found via YouTube search ('{search_info.get('search_query', '')}', {channel})")
+        notes.append(f"language: {language_label(best)}")
         season_source = str(fetch_info.get("source", ""))
         if not via_search and season_source.startswith("season "):
             notes.append(f"trailer from {season_source} of the show")
@@ -2973,6 +2985,7 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
             "tmdb_type": "YouTube search" if via_search else best.get("type", ""),
             "score": best["score"],
             "matched_terms": best.get("matched_terms", []),
+            "language": language_label(best),
             "downloaded_at": utc_now(),
             "download_source": context.get("source", "automatic"),
             "library_id": context.get("library_id", ""),
@@ -2999,6 +3012,7 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
             "youtube_id": best["key"],
             "trailer_name": best["name"],
             "score": best["score"],
+            "language": language_label(best),
             "duration": result["duration"],
             "saved_to": trailer_path,
             "via_search": via_search,
@@ -3011,6 +3025,7 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
             "status": "downloaded",
             "trailer": best["name"],
             "score": best["score"],
+            "language": language_label(best),
             "via_search": via_search,
             "saved_to": trailer_path
         }, 200
