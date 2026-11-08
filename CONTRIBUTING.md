@@ -21,7 +21,8 @@ Issues, pull requests and releases are handled in the project's Git repository (
 | `templates/` | Web UI templates for libraries, settings, and activity |
 | `Dockerfile` | Python 3.12 Alpine container with runtime dependencies |
 | `docker-compose.yml` | Example deployment configuration |
-| `README.md` | Setup, configuration, and usage documentation |
+| `README.md` | Overview, install and core features |
+| `docs/` | Reference: using the app, settings, trailer selection, CLI and API, security, upgrading (plus `docs/images/` for the README screenshots) |
 | `CHANGELOG.md` | Release history |
 
 Runtime state is stored under `/config` and must not be committed.
@@ -298,7 +299,7 @@ By contributing, you agree that your contribution is licensed under the project'
 
 ## Documentation and releases
 
-- Update `README.md` when setup steps, configuration, UI behavior, or documented commands change.
+- Update `README.md` when install steps or the core features change, and the matching page under `docs/` when settings, UI behavior, or documented commands change.
 - Add an entry to `CHANGELOG.md` for meaningful user-facing fixes or features, following its existing style.
 - Do not change release numbers or publish images/releases as part of a routine contribution unless release coordination has been agreed upon.
 

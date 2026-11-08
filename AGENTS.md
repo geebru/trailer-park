@@ -48,7 +48,7 @@ HTML and CSS expert, comfortable enough in JS for design-system work, no hard to
 
 ## Keep docs in step
 Before every commit, ask what the change makes wrong, and fix it in the same commit. Skipping this is how information is lost. The PR says which of these were updated, or why none:
-- Behavior, settings, UI, install or upgrade steps: `README.md`. `CHANGELOG.md` is generated: never edit it.
+- Install steps and core features: `README.md`. Everything else users read (UI, settings, trailer selection, CLI and API, security, upgrading): the matching page in `docs/`; the README stays short, so add detail there, not in the README. `docs/images/` holds the README screenshots (the one exception to "never commit media"); retake them when the UI they show changes, with the dev stack's fake library. `CHANGELOG.md` is generated: never edit it.
 - Layout, the rules in this file (API conventions, "Behavior to keep", workflow), permissions: this file, the skills in `.claude/skills/` that restate it, and `.claude/settings.json`.
 - Dev stack, mock Arrs, axe: `dev/README.md`, `dev/axe/README.md`.
 - Docker, CI, release: `CONTRIBUTING.md` (release checklist) and Releases below.
@@ -96,4 +96,4 @@ Commits (no need to ask), Conventional Commits `type(scope): subject`:
 - One logical commit per working change: each commit leaves the app working. No unrelated edits or formatting churn.
 - Commits are unsigned (`commit.gpgsign` is off); GitHub signs the squash commit when the owner merges. Never use `--no-verify`.
 
-Never: merge a PR (`gh pr merge`), close an issue by hand, push to `main`, force-push, rewrite pushed history, or commit secrets or media. A new dependency is fine when the platform has no native answer: say why in the PR. Anything outside the issue's scope is a separate issue, not a rider.
+Never: merge a PR (`gh pr merge`), close an issue by hand, push to `main`, force-push, rewrite pushed history, or commit secrets or media (the `docs/images/` screenshots excepted). A new dependency is fine when the platform has no native answer: say why in the PR. Anything outside the issue's scope is a separate issue, not a rider.

@@ -22,6 +22,6 @@ In scope: anything that lets someone read or write files outside the configured 
 
 Out of scope:
 
-- **No login.** Trailer Park has no authentication yet, so anyone who can reach its port can use it. That is known and documented (see the [README](README.md#security)); a login is tracked in [#15](https://github.com/geebru/trailer-park/issues/15). Reports that only say "there is no authentication" are not new.
+- **No login.** Trailer Park has no authentication yet, so anyone who can reach its port can use it. That is known and documented (see [Security](docs/security.md)); a login is tracked in [#15](https://github.com/geebru/trailer-park/issues/15). Reports that only say "there is no authentication" are not new.
 - Anything that needs access to the `/config` directory or the host first, or an attacker already on the trusted network the README tells you to use.
 - Flaws in yt-dlp, ffmpeg, Alpine or other bundled software on their own. Report those upstream. Tell the maintainer if the way Trailer Park uses them makes the flaw reachable.
