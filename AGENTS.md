@@ -55,7 +55,7 @@ Keep these files lean: each fact lives in one place, link instead of repeating, 
 
 ## Releases
 - release-please keeps one open release PR built from the commit history on `main`. The owner merges it: that tags `vX.Y.Z`, creates the GitHub Release and rewrites `APP_VERSION` in `engine.py` and the README release line (both carry an `x-release-please-version` marker: keep it). Never edit those versions, add release changelog sections, or hand-edit the release PR: it is regenerated on every push to `main`, so get a good result from the commit instead.
-- The commit type decides the changelog section and the bump (before 1.0). Visible types open or update the release PR: `feat` (✨ Features) and breaking changes bump the minor version, every other visible type bumps the patch. Visible: `feat`, `fix` (🐛 Bug fixes), `perf` (⚡ Performance), `docs` (📝 Documentation), `revert`, and `test`, `refactor`, `chore`, `style` (Other changes). Hidden, so no notes and no release: `agent` (`AGENTS.md`, `CLAUDE.md`, `.claude/`), `ci` (workflows, Dependabot, release config) and `build`. Pick the type by what users see: a change users must act on is `feat!` or `fix!`.
+- The commit type decides the changelog section and the bump (before 1.0). Visible types open or update the release PR: `feat` (✨ Features) and breaking changes bump the minor version, every other visible type bumps the patch. Visible: `feat`, `fix` (🐛 Bug fixes), `perf` (⚡ Performance), `docs` (📝 Documentation), `revert`, and `test`, `refactor`, `chore`, `style` (Other changes). Hidden, so no notes and no release: `ci` (workflows, Dependabot, release config) and `build`. A commit that only touches `AGENTS.md`, `CLAUDE.md` or `.claude/` is skipped by release-please (`exclude-paths` in its config), so `chore` is right for those. Pick the type by what users see: a change users must act on is `feat!` or `fix!`.
 - A breaking change (container name, script path, settings or API shape, a removed feature) puts `!` after the type and a `BREAKING CHANGE:` note in both the commit footer and the PR description (the squash message can be built from either). Write it as a one-line headline of what changed, then what to do: it prints alone under "BREAKING CHANGES", without the commit subject.
 - Config: `release-please-config.json`, `.release-please-manifest.json`, `.github/workflows/release-please.yml`. When a release is created that workflow scans the full history for secrets (`secrets-scan.yml`, TruffleHog), then builds, smoke tests and pushes the multi-arch image to GHCR (`image.yml`) as `X.Y.Z`, `X.Y`, `latest` and, from 1.0, `X`. Both also run on PRs (the image one when the image changes): a failure is real, fix it. By hand, "Secret scan" scans the whole history and "Docker image" pushes a throwaway `test` tag.
 - Every third-party Action is pinned to a commit SHA with its version in a comment. Dependabot moves the pins but not the TruffleHog `version` input: change it with the action tag.
@@ -70,12 +70,12 @@ The skills in `.claude/skills/` hold the steps; this file holds the rules they r
 By type (the title's prefix):
 - `fix`: reproduce first (dev stack, browser at 1280 px and 390 px) and keep before-evidence. Find the root cause, make the smallest fix, confirm the repro is gone, check neighbouring behavior. If you cannot reproduce it, say what you tried instead of guessing.
 - `feat`: restate the acceptance criteria in two or three lines. If it changes the API contract, anything under "Behavior to keep", or needs a design call (new page, new setting), stop and ask before building. Follow the front end and API rules and run axe.
-- `docs`, `chore`, `refactor`, `ci`, `agent` and the rest: no behavior change; keep the diff small.
+- `docs`, `chore`, `refactor`, `ci` and the rest: no behavior change; keep the diff small.
 - Label `question`: draft the answer for the owner. No code.
 - After two honest failed attempts at a fix, stop and report.
 
 Commits (no need to ask), Conventional Commits `type(scope): subject`:
-- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`, and `agent` (agent files only; see Releases).
+- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
 - Scope is the area, lowercase (`nav`, `sidebar`, `services`, `activity`, `jobs`, `settings`, `trailers`, `api`, `engine`). Omit it for repo-wide changes.
 - Subject is imperative, lowercase, no period, under 72 characters. The body says why. Footer `Resolves #N` (finishes the issue) or `Refs #N` (part of it).
 - One logical change per commit; no unrelated edits or formatting churn.
