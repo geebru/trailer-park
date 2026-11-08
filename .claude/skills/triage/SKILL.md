@@ -2,7 +2,6 @@
 name: triage
 description: Read the open GitHub issues and report which ones /work-issue can take, which need a decision from the owner, and which need more information. Changes nothing until the owner agrees.
 argument-hint: <optional issue numbers, default all open issues>
-disable-model-invocation: true
 ---
 
 Triage the open GitHub issues so the owner can see which ones `/work-issue` can take without a conversation first. If `$ARGUMENTS` lists issue numbers (digits only, `#` optional), triage only those. Otherwise triage every open issue. Nothing is recorded on the issues: the report is the output, and a later run reads the issues again.

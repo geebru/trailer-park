@@ -61,15 +61,21 @@ Keep these files lean: each fact lives in one place, link instead of repeating, 
 - Every third-party Action is pinned to a commit SHA with its version in a comment. Dependabot moves the pins but not the TruffleHog `version` input: change it with the action tag.
 
 ## Workflow
-The skills in `.claude/skills/` hold the steps; this file holds the rules they rely on.
-- `/triage` reports on the backlog and changes nothing until the owner approves.
-- `/work-issue <N>` reads the issue, works in a worktree on `<type>/<issue>-<slug>` cut from a fresh `origin/main` (e.g. `fix/31-tooltip-z-index`), verifies, commits, then stops with a review package: what was wrong and why, files and commits, before/after evidence, checks run, risks, what could not be verified. It never pushes, and asks first when the issue is vague or needs a decision.
-- `/preview` starts a local copy of the branch for the owner to try.
-- `/ship`, only after the owner approves, pushes to `origin` and opens the PR against `main`: the title is a valid Conventional Commit under 72 characters (it becomes the squash commit; GitHub appends `(#N)`), the body follows `.github/PULL_REQUEST_TEMPLATE.md` and ends with `Resolves #N`, and the workflow sets the label. Then it stops; the owner merges.
+The skills in `.claude/skills/` hold the steps; this file holds the rules they rely on. The default is to act and report: ask only when the direction is unclear or one of the cases below applies. The PR is the review step.
+- `/triage` reports on the backlog and asks before posting anything to an issue.
+- `/work-issue <N>` reads the issue, works in a worktree on `<type>/<issue>-<slug>` cut from a fresh `origin/main` (e.g. `fix/31-tooltip-z-index`; the type is the Conventional Commit type), verifies, commits, then runs `/ship`. It stops at the open PR, with the evidence, checks, risks and unverified items in the PR body.
+- `/preview` starts a local copy of the branch for the owner to try. Optional.
+- `/ship` pushes to `origin` and opens the PR against `main`: the title is a valid Conventional Commit under 72 characters (it becomes the squash commit; GitHub appends `(#N)`), the body follows `.github/PULL_REQUEST_TEMPLATE.md` and ends with `Resolves #N`, and the workflow sets the label. Then it stops; the owner merges.
+
+Stop and ask before building (and before pushing, if it comes up late) when:
+- the direction is unclear or the issue has more than one reasonable reading;
+- the change is a heavy or lengthy refactor;
+- it deletes a significant amount of code or a feature;
+- it changes UX, or adds a feature, that the issue did not ask for. That includes an API or settings shape, anything under "Behavior to keep", a new page or a new setting.
 
 By type (the title's prefix):
 - `fix`: reproduce first (dev stack, browser at 1280 px and 390 px) and keep before-evidence. Find the root cause, make the smallest fix, confirm the repro is gone, check neighbouring behavior. If you cannot reproduce it, say what you tried instead of guessing.
-- `feat`: restate the acceptance criteria in two or three lines. If it changes the API contract, anything under "Behavior to keep", or needs a design call (new page, new setting), stop and ask before building. Follow the front end and API rules and run axe.
+- `feat`: restate the acceptance criteria in two or three lines, then build. Follow the front end and API rules and run axe.
 - `docs`, `chore`, `refactor`, `ci` and the rest: no behavior change; keep the diff small.
 - Label `question`: draft the answer for the owner. No code.
 - After two honest failed attempts at a fix, stop and report.
@@ -78,7 +84,7 @@ Commits (no need to ask), Conventional Commits `type(scope): subject`:
 - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
 - Scope is the area, lowercase (`nav`, `sidebar`, `services`, `activity`, `jobs`, `settings`, `trailers`, `api`, `engine`). Omit it for repo-wide changes.
 - Subject is imperative, lowercase, no period, under 72 characters. The body says why. Footer `Resolves #N` (finishes the issue) or `Refs #N` (part of it).
-- One logical change per commit; no unrelated edits or formatting churn.
+- One logical commit per working change: each commit leaves the app working. No unrelated edits or formatting churn.
 - Commits are GPG-signed. If signing fails or waits on a passphrase, stop and tell the owner. Never use `--no-verify` or `--no-gpg-sign`.
 
-Never: merge a PR (`gh pr merge`), close an issue by hand, push to `main`, force-push, rewrite pushed history, or commit secrets or media. Ask before: adding a dependency, changing a settings or API shape, deleting a feature, or touching anything outside the issue's scope.
+Never: merge a PR (`gh pr merge`), close an issue by hand, push to `main`, force-push, rewrite pushed history, or commit secrets or media. A new dependency is fine when the platform has no native answer: say why in the PR. Anything outside the issue's scope is a separate issue, not a rider.
