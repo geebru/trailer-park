@@ -108,6 +108,10 @@ kbd,
   transform: none;
 }
 
+.noscript-note {
+  padding: var(--space-8);
+}
+
 @media (prefers-reduced-motion: reduce) {
 
   *,

@@ -234,6 +234,8 @@ Every setting also has an environment variable that gives it its initial value: 
 
 **Reporting a vulnerability.** See [SECURITY.md](SECURITY.md).
 
+Every response carries `Content-Security-Policy` (the interface loads only from its own origin and cannot be put in a frame), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and `X-Frame-Options: DENY`. If you run it behind a reverse proxy, let these headers through.
+
 ---
 
 ## License
