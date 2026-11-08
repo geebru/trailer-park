@@ -126,7 +126,9 @@ DEFAULT_SETTINGS = {
     # TV shows with no show-level trailer: off | first | latest season.
     "season_fallback": os.environ.get("SEASON_FALLBACK", "first"),
     # Search YouTube directly when TMDB has no usable trailer: off | on.
-    "youtube_search": os.environ.get("YOUTUBE_SEARCH", "off")
+    "youtube_search": os.environ.get("YOUTUBE_SEARCH", "off"),
+    # Automatic and batch grabs skip titles the Arr has unmonitored: off | on.
+    "only_monitored": os.environ.get("ONLY_MONITORED", "off")
 }
 
 SETTINGS_LOCK = threading.RLock()
@@ -467,6 +469,10 @@ def validate_settings_scalars(values):
     if youtube_search not in ("off", "on"):
         raise ValueError("YouTube search fallback must be on or off.")
 
+    only_monitored = str(values.get("only_monitored", "off")).strip().lower()
+    if only_monitored not in ("off", "on"):
+        raise ValueError("Only grab monitored titles must be on or off.")
+
     season_fallback = str(values.get("season_fallback", "first")).strip().lower()
     if season_fallback not in SEASON_FALLBACK_MODES:
         raise ValueError("Season fallback must be off, first or latest.")
@@ -493,6 +499,7 @@ def validate_settings_scalars(values):
         "watch_interval_minutes": watch_interval,
         "season_fallback": season_fallback,
         "youtube_search": youtube_search,
+        "only_monitored": only_monitored,
         "trailer_folder": trailer_folder,
         "filename_template": filename_template,
         "preferred_terms": str(values.get("preferred_terms", "")).strip(),
@@ -3522,8 +3529,21 @@ def library_for_item(connection_id, item_path):
     return None
 
 
+def skips_unmonitored(item):
+    """True when "Only grab monitored titles" is on and the Arr has this title unmonitored.
+    Applies to the watcher and batches; grabbing by hand is never blocked."""
+    return (
+        str(cfg("only_monitored") or "off").strip().lower() == "on"
+        and not item.get("monitored", True)
+    )
+
+
 def watcher_grab(connection, item, reason):
     """Grab one item found by the watcher. Returns the result status."""
+
+    if skips_unmonitored(item):
+        log.info(f"Watcher: {item['title']} is unmonitored, skipping.")
+        return "unmonitored"
 
     library = library_for_item(connection.get("id"), item.get("path", ""))
     if not library:
@@ -3812,8 +3832,8 @@ def effective_secret(form, key):
 PUBLIC_SETTING_KEYS = (
     "media_root", "preferred_terms", "excluded_terms", "trailer_folder",
     "filename_template", "video_quality", "container", "max_concurrent_downloads",
-    "watch_interval_minutes", "youtube_search", "season_fallback", "notify_success",
-    "notify_failure", "activity_retention_days",
+    "watch_interval_minutes", "youtube_search", "season_fallback", "only_monitored",
+    "notify_success", "notify_failure", "activity_retention_days",
 )
 SECRET_SETTING_KEYS = ("tmdb_api_key", "discord_webhook_url")
 

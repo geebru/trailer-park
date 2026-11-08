@@ -92,6 +92,10 @@ def list_items():
         "present": sum(1 for s in scoped if s["presence"] == "present"),
         "name_differs": sum(1 for s in scoped if s["name_differs"]),
         "multiple": sum(1 for s in scoped if s["file_count"] > 1),
+        # Missing titles a batch skips because they are unmonitored (setting on).
+        "skipped_unmonitored": sum(
+            1 for s in scoped
+            if s["presence"] == "missing" and E.skips_unmonitored(s["_raw"])),
     }
 
     rows = scoped
@@ -333,7 +337,8 @@ def create_batch():
     snaps, _errors, scan = cache.get_view(media_type, connection_id)
     if scan["state"] != "ready" and not snaps:
         return error("scanning", "The library is still being scanned. Try again in a moment.", 409)
-    missing = [s for s in snaps if s["presence"] == "missing"]
+    missing = [s for s in snaps
+               if s["presence"] == "missing" and not E.skips_unmonitored(s["_raw"])]
     if not missing:
         return error("nothing_to_do", "No missing trailers in this scope.", 409)
     scope = (E.get_connection(connection_id)["name"] if connection_id else "All libraries")

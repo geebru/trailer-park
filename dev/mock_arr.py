@@ -25,7 +25,7 @@ def make_handler(args):
     def radarr_movie(i):
         return {
             "id": i["id"], "title": i["title"], "year": i["year"], "path": i["path"],
-            "tmdbId": i["tmdbId"], "monitored": True, "hasFile": i["hasFile"],
+            "tmdbId": i["tmdbId"], "monitored": i.get("monitored", True), "hasFile": i["hasFile"],
             "movieFile": {"id": 1000 + i["id"]} if i["hasFile"] else None,
             "movieFileId": 1000 + i["id"] if i["hasFile"] else 0,
         }
@@ -33,7 +33,7 @@ def make_handler(args):
     def sonarr_series(i):
         return {
             "id": i["id"], "title": i["title"], "year": i["year"], "path": i["path"],
-            "tmdbId": i["tmdbId"], "tvdbId": None, "imdbId": "", "monitored": True,
+            "tmdbId": i["tmdbId"], "tvdbId": None, "imdbId": "", "monitored": i.get("monitored", True),
         }
 
     shape = radarr_movie if args.type == "radarr" else sonarr_series

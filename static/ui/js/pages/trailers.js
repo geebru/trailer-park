@@ -124,10 +124,12 @@ export function mount(container, { query, navigate }) {
   }
 
   function renderActions() {
-    const c = data.counts;
+    const c = { ...data.counts };
+    const skipped = c.skipped_unmonitored || 0;
+    c.missing -= skipped;
     replace(actionsEl,
       c.name_differs ? h("button", { type: "button", class: "btn btn--secondary", onclick: () => openRename(scope(), { onChange: load }) }, icon("folder"), `Rename ${number(c.name_differs)}`) : null,
-      c.missing ? h("button", { type: "button", class: "btn btn--primary", onclick: () => openGrabAll(scope(), { count: c.missing, label: scopeLabel(), onChange: load }) }, icon("wand-magic-sparkles"), `Grab ${number(c.missing)} missing`) : null);
+      c.missing ? h("button", { type: "button", class: "btn btn--primary", onclick: () => openGrabAll(scope(), { count: c.missing, skipped, label: scopeLabel(), onChange: load }) }, icon("wand-magic-sparkles"), `Grab ${number(c.missing)} missing`) : null);
   }
 
   function renderBanners() {

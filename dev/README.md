@@ -7,7 +7,7 @@ with **no real Radarr/Sonarr and no real media**.
 |---|---|
 | `trailer-park` | the app, built from this repo, on http://localhost:8080 |
 | `mock-radarr`, `mock-radarr-4k`, `mock-sonarr` | tiny fake Arr APIs (`dev/mock_arr.py`), API key `devkey` |
-| `dev/media/` | fake library (`dev/make_media.py`): ~260 movies, 3 in a second "4K" Radarr, ~125 shows |
+| `dev/media/` | fake library (`dev/make_media.py`): ~260 movies, 3 in a second "4K" Radarr, ~125 shows; "Shelved Movie" and "Shelved Show" are unmonitored in the mock Arrs |
 | `dev/config/` | the app's settings, activity log and trailer metadata (git-ignored) |
 
 The fake library covers every trailer state, including names with colons, an mp4 trailer, a

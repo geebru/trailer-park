@@ -835,6 +835,20 @@
   color: var(--text-muted);
 }
 
+/* A read-out beside an action, as tall as the neighbouring controls (Next sync + Sync now). */
+.field__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--control-h);
+}
+
+.field__value {
+  font-size: var(--text-sm);
+  color: var(--text-strong);
+}
+
 .input--full,
 .select--full {
   width: 100%;
@@ -908,12 +922,6 @@
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text);
-}
-
-.card__big {
-  margin-top: 0.25rem;
-  font-size: var(--text-xl, 1.25rem);
-  color: var(--text-strong);
 }
 
 .preview {
