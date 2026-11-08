@@ -2953,6 +2953,9 @@ def handle_grab(title, year, tmdb_id, media_type, folder_path, dry_run=False,
         if via_search:
             channel = best.get("channel") or "unknown channel"
             notes.append(f"found via YouTube search ('{search_info.get('search_query', '')}', {channel})")
+        season_source = str(fetch_info.get("source", ""))
+        if not via_search and season_source.startswith("season "):
+            notes.append(f"trailer from {season_source} of the show")
         if skipped:
             notes.append(
                 f"skipped {len(skipped)} unavailable: "
@@ -3794,8 +3797,8 @@ def effective_secret(form, key):
 PUBLIC_SETTING_KEYS = (
     "media_root", "preferred_terms", "excluded_terms", "trailer_folder",
     "filename_template", "video_quality", "container", "max_concurrent_downloads",
-    "watch_interval_minutes", "youtube_search", "notify_success", "notify_failure",
-    "activity_retention_days",
+    "watch_interval_minutes", "youtube_search", "season_fallback", "notify_success",
+    "notify_failure", "activity_retention_days",
 )
 SECRET_SETTING_KEYS = ("tmdb_api_key", "discord_webhook_url")
 

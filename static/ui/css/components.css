@@ -175,10 +175,10 @@
 }
 
 .panel__title {
-  font-size: var(--text-sm);
-  line-height: var(--lh-sm);
+  font-size: var(--text-xl);
+  line-height: var(--lh-xl);
   font-weight: 600;
-  color: var(--ink-100);
+  color: var(--text-strong);
 }
 
 /* Progress */
@@ -516,6 +516,39 @@
   font-weight: 600;
 }
 
+/* base.css zeroes paragraph margins, so multi-paragraph text needs its own gap. */
+.hint p+p {
+  margin-top: var(--space-2);
+}
+
+.disclosure summary {
+  width: fit-content;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+.disclosure summary:hover {
+  color: var(--text-strong);
+}
+
+.disclosure__body {
+  margin-top: var(--space-2);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.group__title {
+  font-size: var(--text-base);
+  line-height: var(--lh-base);
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
 .input--mono {
   font-family: var(--font-mono);
   height: 2.75rem;
@@ -811,6 +844,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
+}
+
+.stack--loose {
+  gap: var(--space-8);
 }
 
 .stack--tight {
