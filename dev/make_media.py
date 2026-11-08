@@ -34,6 +34,7 @@ MOVIES = [
     ("Oppenheimer", 2023, "Oppenheimer (2023)", 872585, "mismatched_dir"),
 ]
 MOVIES_NO_FILE = [("Upcoming Movie", 2027, "Upcoming Movie (2027)", 1)]   # Radarr hasFile=false
+MOVIES_UNMONITORED = [("Shelved Movie", 2021, "Shelved Movie (2021)", 3)]    # Radarr monitored=false, no trailer
 MOVIES_NO_FOLDER = [("Ghost Movie", 2022, "Ghost Movie (2022)", 2)]       # folder absent on disk
 MOVIES_4K = [
     ("Blade Runner 2049", 2017, "Blade Runner 2049 (2017)", 335984, "ok"),
@@ -48,6 +49,7 @@ SHOWS = [
     ("Fallout", 2024, "Fallout (2024)", 106379, "ok"),
     ("Arcane", 2021, "Arcane (2021)", 94605, "missing"),
 ]
+SHOWS_UNMONITORED = [("Shelved Show", 2020, "Shelved Show (2020)", 4)]       # Sonarr monitored=false, no trailer
 
 WORDS_A = ["Silent", "Crimson", "Last", "Broken", "Golden", "Hidden", "Midnight", "Electric",
            "Paper", "Northern", "Burning", "Quiet", "Iron", "Velvet", "Lost", "Distant"]
@@ -105,7 +107,7 @@ def main():
     catalog = {"radarr_main": [], "radarr_4k": [], "sonarr_main": []}
     next_id = {"radarr_main": 1, "radarr_4k": 1, "sonarr_main": 1}
 
-    def add(key, root, title, year, folder, tmdb, state, has_file=True, make_folder=True):
+    def add(key, root, title, year, folder, tmdb, state, has_file=True, make_folder=True, monitored=True):
         path = f"/data/media/{root}/{folder}"
         disk = os.path.join(out, root, folder)
         if make_folder:
@@ -117,7 +119,7 @@ def main():
             make_trailers(disk, title, year, state)
         catalog[key].append({
             "id": next_id[key], "title": title, "year": year, "path": path,
-            "tmdbId": tmdb, "hasFile": has_file,
+            "tmdbId": tmdb, "hasFile": has_file, "monitored": monitored,
         })
         next_id[key] += 1
 
@@ -125,12 +127,16 @@ def main():
         add("radarr_main", "movies", t, y, f, tm, st)
     for t, y, f, tm in MOVIES_NO_FILE:
         add("radarr_main", "movies", t, y, f, tm, "missing", has_file=False)
+    for t, y, f, tm in MOVIES_UNMONITORED:
+        add("radarr_main", "movies", t, y, f, tm, "missing", monitored=False)
     for t, y, f, tm in MOVIES_NO_FOLDER:
         add("radarr_main", "movies", t, y, f, tm, "missing", make_folder=False)
     for t, y, f, tm, st in MOVIES_4K:
         add("radarr_4k", "movies-4k", t, y, f, tm, st)
     for t, y, f, tm, st in SHOWS:
         add("sonarr_main", "tv", t, y, f, tm, st)
+    for t, y, f, tm in SHOWS_UNMONITORED:
+        add("sonarr_main", "tv", t, y, f, tm, "missing", monitored=False)
 
     weights = [("ok", 55), ("missing", 25), ("mismatched", 12), ("multiple", 8)]
     states = [s for s, w in weights for _ in range(w)]

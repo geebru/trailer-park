@@ -321,6 +321,7 @@ export function mount(container, { query, navigate }) {
     nextTimer = setInterval(paintNext, 1000);
     return h("div", { class: "stack" },
       h("div", { class: "grid2" }, field("Sync interval", "How often to check every connection", iv.el, iv.id), field("Activity retention", "Older entries are removed automatically", rt.el, rt.id)),
+      toggle("Only grab monitored titles", "The sync and Grab missing skip titles that Radarr or Sonarr has unmonitored. They stay in Trailers, and you can still grab them one at a time.", draft.only_monitored === "on", (v) => setDraft("only_monitored", v ? "on" : "off")),
       card(h("div", { class: "split" }, h("div", {}, h("div", { class: "label" }, "Next sync"), nextEl), syncBtn)),
       h("p", { class: "hint" }, "A sync is a lightweight check for added or changed titles. Trailer searches and downloads only run when something relevant changed."));
   }

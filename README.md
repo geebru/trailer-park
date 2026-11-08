@@ -127,10 +127,10 @@ Settings are saved with **Save changes** (or **Discard**). Connections are saved
 | **Scoring** | **Positive keywords** and **Negative keywords** (see below), and the **YouTube search fallback** (off by default). |
 | **TMDB** | Your TMDB Read Access Token, with **Test key**. |
 | **Downloads** | yt-dlp version and updates. **Resolution** (maximum: 480p, 720p, **1080p**, 4K), **Output container** (**mkv** or mp4; mp4 prefers H.264 so files play on more devices) and **Concurrent downloads** (**1** to 4). Changes only affect new downloads. |
-| **Automation** | **Sync interval** (Off, **5**, 10, 15, 30 minutes, 1, 6 or 24 hours), **Sync now**, and **Activity retention** (60, **90** or 180 days, 1 year, or forever). |
+| **Automation** | **Sync interval** (Off, **5**, 10, 15, 30 minutes, 1, 6 or 24 hours), **Only grab monitored titles** (off by default), **Sync now**, and **Activity retention** (60, **90** or 180 days, 1 year, or forever). |
 | **Notifications** | An optional Discord webhook URL (only `https://discord.com/api/webhooks/...` addresses are accepted) with **Send test** (a successful test saves it), and toggles for **Trailer downloaded** and **Grab failed** (both on by default). Batches and Sync now send one summary instead of one message per title. |
 
-**Automatic grabs** come from a watcher that polls each connection's API at the sync interval (Off turns automatic grabs off). Radarr grabs on import and upgrade. Sonarr grabs when a series is added, and if its folder does not exist yet it waits (up to 30 days). The first check of a connection only records a baseline, so use **Grab N missing** for titles that were already there. **Sync now** runs a check immediately. Existing trailers are kept on upgrades and on later episode imports.
+**Automatic grabs** come from a watcher that polls each connection's API at the sync interval (Off turns automatic grabs off). Radarr grabs on import and upgrade. Sonarr grabs when a series is added, and if its folder does not exist yet it waits (up to 30 days). The first check of a connection only records a baseline, so use **Grab N missing** for titles that were already there. **Sync now** runs a check immediately. Existing trailers are kept on upgrades and on later episode imports. With **Only grab monitored titles** on, the watcher and **Grab N missing** skip titles that Radarr or Sonarr has unmonitored; they stay in Trailers and can still be grabbed one at a time.
 
 The download limit applies across the web interface, batches, the watcher and the command line.
 
@@ -222,7 +222,7 @@ The `/config` volume holds the app's state. Do not commit it to a public reposit
 | `bin/yt-dlp` | The updated yt-dlp copy, only after an in-app update |
 | `download-slots/` | Lock files for the concurrent download limit |
 
-Every setting also has an environment variable that gives it its initial value: the setting's name in capitals, such as `TMDB_API_KEY`, `MEDIA_ROOT`, `VIDEO_QUALITY`, `WATCH_INTERVAL_MINUTES`, `SEASON_FALLBACK` or `YOUTUBE_SEARCH`. Once settings have been saved they live in `settings.json` and that file wins, so use the interface after the first save.
+Every setting also has an environment variable that gives it its initial value: the setting's name in capitals, such as `TMDB_API_KEY`, `MEDIA_ROOT`, `VIDEO_QUALITY`, `WATCH_INTERVAL_MINUTES`, `SEASON_FALLBACK`, `YOUTUBE_SEARCH` or `ONLY_MONITORED`. Once settings have been saved they live in `settings.json` and that file wins, so use the interface after the first save.
 
 ---
 
