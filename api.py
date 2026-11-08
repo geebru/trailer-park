@@ -385,22 +385,50 @@ def create_batch():
         return error("unknown_connection", "No such connection.")
     if media_type and media_type not in TYPES:
         return error("bad_type", "type must be 'movie' or 'series'.")
-    snaps, _errors, scan = cache.get_view(media_type, connection_id)
-    if scan["state"] != "ready" and not snaps:
-        return error("scanning", "The library is still being scanned. Try again in a moment.", 409)
-    ignored = E.load_ignored()
-    missing = [s for s in snaps
-               if s["presence"] == "missing" and not is_ignored(s, ignored)
-               and not E.skips_unmonitored(s["_raw"])]
-    if not missing:
-        return error("nothing_to_do", "No missing trailers in this scope.", 409)
-    scope = (E.get_connection(connection_id)["name"] if connection_id else "All libraries")
-    if media_type:
-        scope += " (movies)" if media_type == "movie" else " (series)"
+    picked = data.get("items")
+    if picked is not None:
+        # A hand-picked selection instead of a whole scope. A missing title is grabbed; a title
+        # that has a trailer is replaced only when its entry says "replace": true. Titles that are
+        # gone, or whose state changed since the page loaded, are skipped rather than failing the
+        # request: the page may be slightly stale. Ignored and unmonitored titles are not
+        # filtered: picking a title is a manual action, like grabbing it by hand.
+        if (not isinstance(picked, list) or not picked
+                or not all(isinstance(p, dict) and isinstance(p.get("connection"), str)
+                           and type(p.get("id")) is int
+                           and isinstance(p.get("replace", False), bool) for p in picked)):
+            return error("bad_items", "items must be a non-empty list of {connection, id, replace?}.")
+        seen, missing = set(), []
+        for p in picked:
+            key = (p["connection"], p.get("id"))
+            snap = None if key in seen else cache.get_item(*key)
+            seen.add(key)
+            if not snap:
+                continue
+            if snap["presence"] == "missing":
+                missing.append({**snap, "job_kind": "grab"})
+            elif p.get("replace") and snap["presence"] == "present":
+                missing.append({**snap, "job_kind": "replace"})
+        if not missing:
+            return error("nothing_to_do", "None of the selected titles can be grabbed.", 409)
+        scope = f"{len(missing)} selected"
+    else:
+        snaps, _errors, scan = cache.get_view(media_type, connection_id)
+        if scan["state"] != "ready" and not snaps:
+            return error("scanning", "The library is still being scanned. Try again in a moment.", 409)
+        ignored = E.load_ignored()
+        missing = [s for s in snaps
+                   if s["presence"] == "missing" and not is_ignored(s, ignored)
+                   and not E.skips_unmonitored(s["_raw"])]
+        if not missing:
+            return error("nothing_to_do", "No missing trailers in this scope.", 409)
+        scope = (E.get_connection(connection_id)["name"] if connection_id else "All libraries")
+        if media_type:
+            scope += " (movies)" if media_type == "movie" else " (series)"
     try:
         batch = jobs.start_batch(scope, [
             {"connection_id": s["connection_id"], "id": s["id"],
-             "title": s["title"], "year": s["year"]} for s in missing])
+             "title": s["title"], "year": s["year"],
+             "kind": s.get("job_kind", "grab")} for s in missing])
     except jobs.BatchBusy:
         return error("batch_active", "A batch is already running.", 409)
     return jsonify({"batch": batch.summary()}), 202

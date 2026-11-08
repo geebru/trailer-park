@@ -110,6 +110,7 @@ Changing the folder or file name settings never moves a title between Missing an
 - **Grab** lets TMDB choose the best trailer. **Manual** uses a YouTube link or ID you give it.
 - **Ignore** is for titles you do not want a trailer for (shorts, kids' shows). An ignored title leaves Missing, its count, **Grab N missing** and the automatic grabs, and shows as **Ignored** under All titles, where **Grab** and **Manual** still work. Un-ignore it under **Settings → Ignored**. Once a title has a trailer the ignore is dropped.
 - **Grab N missing** (top right) grabs every missing title in the current tab and connection filter, one after another, after a confirmation. Progress and **Cancel batch** are in the sidebar.
+- **Select** titles with the checkboxes (or **Select all on this page**; filter to Missing first to pick only those), then **Grab N selected** grabs them as one batch, with no job dialog. If the selection includes titles that already have a trailer, a confirmation asks whether to **Grab missing only** or **Grab all**, which replaces those trailers (the old files are deleted once the new download succeeds). Select all skips ignored titles; one you tick by hand is still grabbed, as are unmonitored ones. The selection survives paging and is cleared when you change a filter.
 
 **Available** lists titles that have a trailer, marked **Name mismatch** (the file does not match your naming template) and/or **Multiple found** (several trailer files; allowed, not an error).
 
@@ -144,7 +145,7 @@ Settings are saved with **Save changes** (or **Discard**). Connections are saved
 | **Notifications** | An optional Discord webhook URL (only `https://discord.com/api/webhooks/...` addresses are accepted) with **Send test** (a successful test saves it), and toggles for **Trailer downloaded** and **Grab failed** (both on by default). Batches and Sync now send one summary instead of one message per title. |
 | **Ignored** | The titles you chose to ignore, each with **Un-ignore**. |
 
-**Automatic grabs** come from a watcher that polls each connection's API at the sync interval (Off turns automatic grabs off). Radarr grabs on import and upgrade. Sonarr grabs when a series is added, and if its folder does not exist yet it waits (up to 30 days). The first check of a connection only records a baseline, so use **Grab N missing** for titles that were already there. **Sync now** runs a check immediately. Existing trailers are kept on upgrades and on later episode imports. With **Only grab monitored titles** on, the watcher and **Grab N missing** skip titles that Radarr or Sonarr has unmonitored; they stay in Trailers and can still be grabbed one at a time.
+**Automatic grabs** come from a watcher that polls each connection's API at the sync interval (Off turns automatic grabs off). Radarr grabs on import and upgrade. Sonarr grabs when a series is added, and if its folder does not exist yet it waits (up to 30 days). The first check of a connection only records a baseline, so use **Grab N missing** for titles that were already there. **Sync now** runs a check immediately. Existing trailers are kept on upgrades and on later episode imports. With **Only grab monitored titles** on, the watcher and **Grab N missing** skip titles that Radarr or Sonarr has unmonitored; they stay in Trailers and can still be grabbed one at a time or by selecting them.
 
 The download limit applies across the web interface, batches, the watcher and the command line.
 
@@ -216,7 +217,7 @@ The interface is a client of a JSON API under `/api`, with no authentication. `G
 | Titles | `GET /api/items`, `GET /api/items/<connection>/<id>`, `POST /api/library/refresh` |
 | Grab, replace, manual | `POST /api/items/<connection>/<id>/grab` (send `{"replace": true}` to replace), `POST .../force` (a specific YouTube link or ID) |
 | Files | `POST /api/items/<connection>/<id>/files/rename`, `.../keep`, `.../delete`, `POST /api/items/rename-all` |
-| Jobs and batches | `GET /api/jobs`, `GET /api/jobs/<id>`, `POST /api/jobs/<id>/cancel`, `POST /api/batches`, `GET /api/batches/current`, `POST /api/batches/current/cancel` |
+| Jobs and batches | `GET /api/jobs`, `GET /api/jobs/<id>`, `POST /api/jobs/<id>/cancel`, `POST /api/batches` (a scope, or `{"items": [{"connection", "id", "replace"?}]}` for a selection: missing titles are grabbed, titles with a trailer only when `replace` is true), `GET /api/batches/current`, `POST /api/batches/current/cancel` |
 | Sync | `POST /api/watcher/run` |
 | Overview and activity | `GET /api/overview`, `GET /api/activity`, `POST /api/activity/clear` |
 | Settings | `GET` and `PUT /api/settings`, `POST /api/settings/test/<service>`, `POST /api/settings/naming-preview`, `POST /api/connections/test` |

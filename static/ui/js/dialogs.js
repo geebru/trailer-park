@@ -231,6 +231,28 @@ export function openRename(scope, { onChange } = {}) {
   }
 }
 
+/* ── Grab selected ─────────────────────────────────────────────────── */
+
+/** Shown only when a selection includes titles that already have a trailer. Resolves via onChoose(replace). */
+export function openGrabSelected({ missing, present, onChoose } = {}) {
+  const total = missing + present;
+  const dlg = createDialog({ title: `Grab ${number(total)} selected title${total === 1 ? "" : "s"}?`, size: "sm", role: "alertdialog" });
+  const plural = (n, one, many) => `${number(n)} ${n === 1 ? one : many}`;
+  const choose = (replaceExisting) => () => { dlg.close(); onChoose(replaceExisting); };
+  dlg.body.append(
+    h("ul", { class: "grab-counts" },
+      h("li", {}, h("strong", {}, plural(missing, "title has", "titles have")), " no trailer and will be grabbed."),
+      h("li", {}, h("strong", {}, plural(present, "title already has", "titles already have")), " a trailer.")),
+    h("p", { class: "hint" }, "Grabbing all replaces those trailers: the old files are deleted once the new download succeeds, including trailers you chose with Manual or added yourself."));
+  const missingOnly = btn("btn--primary", `Grab ${number(missing)} missing only`, choose(false), "download");
+  setDisabled(missingOnly, !missing && "None of the selected titles are missing a trailer");
+  dlg.footer.append(h("span", {}), h("div", { class: "dialog__actions" },
+    btn("btn--tertiary", "Cancel", dlg.close), missingOnly,
+    btn("btn--secondary btn--danger", `Grab all ${number(total)}`, choose(true), "download")));
+  // The dialog is already open, so autofocus no longer applies: put focus on the safe choice.
+  (missing ? missingOnly : dlg.footer.querySelector(".btn--tertiary")).focus();
+}
+
 /* ── Grab all missing ──────────────────────────────────────────────── */
 
 export function openGrabAll(scope, { count, skipped = 0, label, onChange } = {}) {
