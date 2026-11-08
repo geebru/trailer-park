@@ -256,16 +256,21 @@ export function mount(container, { query, navigate }) {
         h("p", {}, "Show-level trailers that mention a later season (“Season 8”, “Final Season”) are ranked last, but still used if nothing else exists."),
         h("p", {}, "The keywords ", h("span", { class: "mono" }, "season 1"), " and ", h("span", { class: "mono" }, "season 01"),
           " are positive keywords by default and add score. Existing installs keep their saved keywords.")));
-    return h("div", { class: "stack stack--tight" }, h("div", { class: "narrow" },
-      field("TV season fallback", "Used only when a show has no show-level trailer on TMDB.", sel.el, sel.id)), more);
+    const el = field("TV season fallback", "Used only when a show has no show-level trailer on TMDB.", sel.el, sel.id);
+    el.append(more);
+    return h("div", { class: "narrow" }, el);
+  }
+  function youtubeSearch() {
+    const sel = selectInput([["off", "Off"], ["on", "On"]], draft.youtube_search, (v) => setDraft("youtube_search", v));
+    return h("div", { class: "narrow" },
+      field("YouTube search fallback", "Search YouTube directly. Results are scored with the same keywords.", sel.el, sel.id));
   }
   function behavior() {
     return h("div", { class: "stack stack--loose" },
       group("Keywords", "Trailer titles are scored against these words to pick the best match.",
         h("div", { class: "grid2" }, termEditor("preferred_terms", "Positive keywords", "success", "Increase score"), termEditor("excluded_terms", "Negative keywords", "danger", "Reduce score"))),
       group("Fallbacks", "What to try when TMDB has no suitable trailer for a title.",
-        seasonFallback(),
-        toggle("YouTube search fallback", "Search YouTube directly. Results are scored with the same keywords.", draft.youtube_search === "on", (v) => setDraft("youtube_search", v ? "on" : "off"))));
+        seasonFallback(), youtubeSearch()));
   }
 
   /* ── Secrets (TMDB, Discord) ─────────────────────────────────────── */
