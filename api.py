@@ -27,8 +27,13 @@ def error(code, message, status=400):
     return jsonify({"error": {"code": code, "message": E.redact_secrets(message)}}), status
 
 
-def public(snap):
-    return {k: snap[k] for k in PUBLIC_FIELDS}
+def is_ignored(snap, ignored):
+    """Ignoring only counts while the title has no trailer file."""
+    return snap["presence"] == "missing" and E.ignored_key(snap["connection_id"], snap["id"]) in ignored
+
+
+def public(snap, ignored=()):
+    return {**{k: snap[k] for k in PUBLIC_FIELDS}, "ignored": is_ignored(snap, ignored)}
 
 
 def int_arg(name, default, minimum=1):
@@ -75,6 +80,7 @@ def list_items():
         return error("bad_page", f"per_page must be one of {', '.join(map(str, PER_PAGE_ALLOWED))}.")
 
     snaps, errors, scan = cache.get_view(media_type, connection_id)
+    ignored = E.load_ignored()
 
     # Dropdown contents come from the type scope, not from the other filters.
     roots = sorted({s["root_folder"] for s in snaps if s["root_folder"]})
@@ -88,14 +94,16 @@ def list_items():
     # so tab badges stay stable while the user types (SPEC 6.3).
     scoped = [s for s in snaps if not root or s["root_folder"] == root]
     counts = {
-        "missing": sum(1 for s in scoped if s["presence"] == "missing"),
+        "missing": sum(1 for s in scoped if s["presence"] == "missing" and not is_ignored(s, ignored)),
         "present": sum(1 for s in scoped if s["presence"] == "present"),
         "name_differs": sum(1 for s in scoped if s["name_differs"]),
         "multiple": sum(1 for s in scoped if s["file_count"] > 1),
-        # Missing titles a batch skips because they are unmonitored (setting on).
+        # Missing titles a batch skips because they are unmonitored (setting on). Ignored ones are
+        # already out of "missing", so they are not counted again.
         "skipped_unmonitored": sum(
             1 for s in scoped
-            if s["presence"] == "missing" and E.skips_unmonitored(s["_raw"])),
+            if s["presence"] == "missing" and not is_ignored(s, ignored)
+            and E.skips_unmonitored(s["_raw"])),
     }
 
     rows = scoped
@@ -103,6 +111,8 @@ def list_items():
         rows = [s for s in rows if query in s["title"].lower()]
     if status:
         rows = [s for s in rows if s["presence"] == status]
+    if status == "missing":
+        rows = [s for s in rows if not is_ignored(s, ignored)]
     if tag == "name_differs":
         rows = [s for s in rows if s["name_differs"]]
     elif tag == "multiple":
@@ -116,7 +126,7 @@ def list_items():
 
     start = (page - 1) * per_page
     return jsonify({
-        "items": [public(s) for s in rows[start:start + per_page]],
+        "items": [public(s, ignored) for s in rows[start:start + per_page]],
         "page": page, "per_page": per_page, "total": len(rows),
         "counts": counts, "scan": scan, "errors": errors,
         "filters": {"connections": connections, "roots": roots},
@@ -143,7 +153,7 @@ def _item_detail(connection_id, item_id, snap=None):
     fresh = cache.refresh_item(connection_id, item_id) or snap
     _state, files = E.trailer_state(fresh["folder"], fresh["title"], fresh["year"])
     metadata = E.load_trailer_metadata()
-    return {**public(fresh), "files": [{
+    return {**public(fresh, E.load_ignored()), "files": [{
         "path": f["name"],
         "size": f["size"],
         "matches": f["matches"],
@@ -207,8 +217,11 @@ def public_activity(entry):
 @bp.get("/overview")
 def overview():
     snaps, errors, scan = cache.get_view()
+    ignored = E.load_ignored()
     present = sum(1 for s in snaps if s["presence"] == "present")
+    ignored_count = sum(1 for s in snaps if is_ignored(s, ignored))
     total = len(snaps)
+    wanted = total - ignored_count          # titles that should have a trailer
     health = cache.connection_health()
     connections = []
     for c in E.get_connections():
@@ -225,9 +238,10 @@ def overview():
             "all": total,
             "movies": sum(1 for s in snaps if s["type"] == "movie"),
             "series": sum(1 for s in snaps if s["type"] == "series"),
-            "missing": total - present,
+            "missing": wanted - present,
+            "ignored": ignored_count,
             "present": present,
-            "coverage": round(present / total * 100, 1) if total else None,
+            "coverage": round(present / wanted * 100, 1) if wanted else None,
             "name_differs": sum(1 for s in snaps if s["name_differs"]),
             "multiple": sum(1 for s in snaps if s["file_count"] > 1),
         },
@@ -292,6 +306,43 @@ def force_item(connection_id, item_id):
     return _submit("force", connection_id, item_id, youtube_id=yt_id)
 
 
+@bp.post("/items/<connection_id>/<int:item_id>/ignore")
+def ignore_item(connection_id, item_id):
+    data = _json_body()
+    if data is None:
+        return error("bad_content_type", "Send a JSON body.", 415)
+    ignored = data.get("ignored")
+    if not isinstance(ignored, bool):
+        return error("bad_ignored", "'ignored' must be true or false.")
+    if ignored:
+        snap, err = _item_or_error(connection_id, item_id)
+        if err:
+            return err
+        if snap["presence"] != "missing":
+            return error("not_missing", "Only titles without a trailer can be ignored.", 409)
+        E.ignore_item(connection_id, item_id, True, snap["title"], snap["year"])
+    else:
+        # Works even when the Arr is down or the title is gone, so a stale entry can always be cleared.
+        entry = E.load_ignored().get(E.ignored_key(connection_id, item_id))
+        if entry is None:
+            return error("not_found", "That title is not ignored.", 404)
+        E.ignore_item(connection_id, item_id, False, entry.get("title", ""), entry.get("year"))
+    return jsonify({"ok": True, "ignored": ignored})
+
+
+@bp.get("/ignored")
+def list_ignored():
+    items = []
+    for entry in E.ignored_list():
+        snap = cache.get_item(entry["connection_id"], entry["id"])
+        if snap is not None and snap["presence"] == "present":
+            # A trailer arrived since (download or by hand): the ignore has served its purpose.
+            E.set_ignored(entry["connection_id"], entry["id"], False)
+            continue
+        items.append(entry)
+    return jsonify({"items": items})
+
+
 @bp.get("/jobs")
 def list_jobs():
     return jsonify({"jobs": jobs.list_jobs(active_only=request.args.get("active") == "1")})
@@ -337,8 +388,10 @@ def create_batch():
     snaps, _errors, scan = cache.get_view(media_type, connection_id)
     if scan["state"] != "ready" and not snaps:
         return error("scanning", "The library is still being scanned. Try again in a moment.", 409)
+    ignored = E.load_ignored()
     missing = [s for s in snaps
-               if s["presence"] == "missing" and not E.skips_unmonitored(s["_raw"])]
+               if s["presence"] == "missing" and not is_ignored(s, ignored)
+               and not E.skips_unmonitored(s["_raw"])]
     if not missing:
         return error("nothing_to_do", "No missing trailers in this scope.", 409)
     scope = (E.get_connection(connection_id)["name"] if connection_id else "All libraries")

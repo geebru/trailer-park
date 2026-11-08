@@ -5,6 +5,7 @@ import { number } from "../format.js";
 import { store } from "../store.js";
 import { openManual, openFiles, openRename, openGrabAll, startJob } from "../dialogs.js";
 import { setDisabled } from "../tip.js";
+import { toast } from "../toast.js";
 import { pageHeading, notice } from "./common.js";
 
 export const title = "Trailers";
@@ -146,8 +147,17 @@ export function mount(container, { query, navigate }) {
     }
     const run = (replace) => () => startJob(`/items/${item.connection_id}/${item.id}/grab`, { replace }, { onDone: load });
     const manual = h("button", { type: "button", class: "btn btn--tertiary btn--sm", onclick: () => openManual(item, { onDone: load }) }, icon("link"), "Manual");
+    const ignore = async () => {
+      try {
+        await api.post(`/items/${item.connection_id}/${item.id}/ignore`, { ignored: true });
+        toast(`${item.title} ignored. Un-ignore it under Settings, Ignored.`, "success");
+        load();
+      } catch (err) { toast(err.message, "danger"); }
+    };
     return item.presence === "missing"
-      ? [manual, h("button", { type: "button", class: "btn btn--primary btn--sm", onclick: run(false) }, icon("download"), "Grab")]
+      ? [manual,
+         item.ignored ? null : h("button", { type: "button", class: "btn btn--tertiary btn--sm", onclick: ignore }, icon("ban"), "Ignore"),
+         h("button", { type: "button", class: "btn btn--primary btn--sm", onclick: run(false) }, icon("download"), "Grab")]
       : [manual,
          h("button", { type: "button", class: "btn btn--tertiary btn--sm", onclick: run(true) }, icon("download"), "Replace"),
          h("button", { type: "button", class: "btn btn--tertiary btn--sm", onclick: () => openFiles(item, { onChange: load }) }, icon("folder"), "Files")];
@@ -160,7 +170,8 @@ export function mount(container, { query, navigate }) {
         h("div", { class: "trailer-row__name" }, icon(item.type === "series" ? "tv" : "film", "icon tone-neutral"), h("span", {}, item.title)),
         h("div", { class: "trailer-row__meta" }, [item.year, item.connection_name].filter(Boolean).join(" · "))),
       h("div", { class: "trailer-row__file" }, missing
-        ? h("span", { class: "flag tone-warning" }, icon("triangle-exclamation"), "No trailer file")
+        ? (item.ignored ? h("span", { class: "flag tone-neutral" }, icon("ban"), "Ignored, no trailer wanted")
+          : h("span", { class: "flag tone-warning" }, icon("triangle-exclamation"), "No trailer file"))
         : [h("div", { class: "trailer-row__path" }, (item.primary_file || "").replace(/^trailers\//i, "")),
            h("div", { class: "trailer-row__flags" },
              item.file_count === 1 && item.total_size ? h("span", { class: "trailer-row__size" }, bytes(item.total_size)) : null,

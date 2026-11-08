@@ -46,10 +46,11 @@ export function mount(container, { navigate }) {
       return;
     }
     const t = o.totals;
-    const pctMissing = t.all ? ((t.missing / t.all) * 100).toFixed(1) : "0.0";
+    const wanted = t.all - (t.ignored || 0);
+    const pctMissing = wanted ? ((t.missing / wanted) * 100).toFixed(1) : "0.0";
     replace(statsEl,
       stat({ iconName: "film", label: "Total media", value: number(t.all), detail: `${number(t.movies)} movies · ${number(t.series)} series` }),
-      stat({ iconName: "triangle-exclamation", label: "Missing trailers", value: number(t.missing), detail: `${pctMissing}% of all titles`, accent: true,
+      stat({ iconName: "triangle-exclamation", label: "Missing trailers", value: number(t.missing), detail: `${pctMissing}% of titles${t.ignored ? ` · ${number(t.ignored)} ignored` : ""}`, accent: true,
         action: t.missing ? h("a", { class: "btn btn--tertiary btn--sm stat__action", href: "/trailers?status=missing" }, "Review", icon("arrow-right")) : null }),
       stat({ iconName: "tower-broadcast", label: "Coverage", value: `${Number(t.coverage).toFixed(1)}%`, detail: `${number(t.present)} trailers available` }));
 
