@@ -68,6 +68,10 @@ YTDLP_COOKIES_FILE = os.environ.get(
 YTDLP_CHECK_INTERVAL_SECONDS = 24 * 60 * 60
 YTDLP_MONITOR_INTERVAL_SECONDS = 60 * 60
 
+IGNORED_FILE = os.environ.get(
+    "IGNORED_FILE",
+    os.path.join(CONFIG_DIR, "ignored.json")
+)
 WATCH_STATE_FILE = os.environ.get(
     "WATCH_STATE_FILE",
     os.path.join(CONFIG_DIR, "watch-state.json")
@@ -137,6 +141,7 @@ LOCAL_ACTIVITY_LOCK = threading.RLock()
 YTDLP_STATUS_LOCK = threading.RLock()
 BACKGROUND_JOBS_LOCK = threading.RLock()
 WATCH_LOCK = threading.RLock()
+IGNORED_LOCK = threading.RLock()
 BACKGROUND_JOBS_STARTED = False
 
 
@@ -719,6 +724,7 @@ ACTIVITY_KINDS = {
     "grab": "grab", "force": "grab", "rename": "rename", "delete": "delete",
     "batch": "batch", "batch cancelled": "batch", "batch finished": "batch",
     "yt-dlp update": "ytdlp", "cleanup": "cleanup", "sync": "sync",
+    "ignore": "ignore", "unignore": "ignore",
 }
 
 
@@ -879,6 +885,85 @@ def update_trailer_metadata(trailer_path, metadata=None, remove=False):
             json.dump(data, f, indent=2, ensure_ascii=False)
             f.write("\n")
         os.replace(temp_path, TRAILER_METADATA_FILE)
+
+
+# ── Ignored titles ────────────────────────────────────────────────────────
+#
+# A title the owner does not want a trailer for. The flag only matters while
+# the title has no trailer file: ignored titles drop out of the Missing view,
+# its counts, "Grab missing" batches and the watcher. A manual Grab still works.
+# Stored by Arr connection and item id, with the title so the Settings list
+# does not depend on the Arr being reachable.
+
+def ignored_key(connection_id, item_id):
+    return f"{connection_id}:{item_id}"
+
+
+def load_ignored():
+    """{key: {connection_id, id, title, year, ignored_at}}."""
+    with IGNORED_LOCK:
+        try:
+            with open(IGNORED_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+        except FileNotFoundError:
+            return {}
+        except Exception as e:      # noqa: BLE001
+            log.warning(f"Could not read ignored titles: {e}")
+            return {}
+
+
+def set_ignored(connection_id, item_id, ignored, title="", year=None):
+    """Ignore or un-ignore one title. Returns whether anything changed."""
+    key = ignored_key(connection_id, item_id)
+    with IGNORED_LOCK:
+        data = load_ignored()
+        if ignored:
+            if key in data:
+                return False
+            data[key] = {"connection_id": connection_id, "id": item_id,
+                         "title": title, "year": year, "ignored_at": utc_now()}
+        elif data.pop(key, None) is None:
+            return False
+        os.makedirs(os.path.dirname(IGNORED_FILE) or CONFIG_DIR, exist_ok=True)
+        temp_path = f"{IGNORED_FILE}.tmp"
+        with open(temp_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        os.replace(temp_path, IGNORED_FILE)
+    return True
+
+
+def ignore_item(connection_id, item_id, ignored, title="", year=None):
+    """set_ignored plus an Activity entry when the state really changed."""
+    changed = set_ignored(connection_id, item_id, ignored, title, year)
+    if changed:
+        connection = get_connection(connection_id) or {}
+        record_activity({
+            "source": "Web UI", "status": "success",
+            "action": "ignore" if ignored else "unignore",
+            "arr_type": connection.get("type", ""),
+            "connection_id": connection_id, "connection": connection.get("name", ""),
+            "item_id": item_id, "title": title, "year": year or "",
+            "detail": "Ignored: no trailer wanted." if ignored else "No longer ignored."})
+    return changed
+
+
+def is_ignored(connection_id, item_id):
+    return ignored_key(connection_id, item_id) in load_ignored()
+
+
+def ignored_list():
+    """Ignored titles of connections that still exist, for Settings, sorted by title."""
+    names = {c["id"]: c for c in get_connections()}
+    out = []
+    for entry in load_ignored().values():
+        connection = names.get(entry.get("connection_id"))
+        if connection:
+            out.append({**entry, "connection_name": connection.get("name", ""),
+                        "type": "movie" if connection.get("type") == "radarr" else "series"})
+    out.sort(key=lambda e: (str(e.get("title", "")).lower(), str(e.get("year") or "")))
+    return out
 
 
 # ── HTTP helpers ──────────────────────────────────────────────────────────
@@ -3549,6 +3634,10 @@ def watcher_grab(connection, item, reason):
     if not library:
         log.info(f"Watcher: {item['title']} is outside every library, skipping.")
         return "outside_library"
+
+    if is_ignored(connection.get("id"), item.get("id")):
+        log.info(f"Watcher: {item['title']} is ignored, skipping.")
+        return "ignored"
 
     context = context_for_item(item, library, "API watcher")
     context["watch_reason"] = reason

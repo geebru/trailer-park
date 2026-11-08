@@ -180,8 +180,9 @@ export function mount(container, { query, navigate }) {
   }
 
   function renderSelect() {
-    const rows = data.items.filter(selectable);
-    selectEl.hidden = !rows.length && !picked.size;
+    // Select all skips ignored titles (their owner said no trailer wanted); each can still be ticked by hand.
+    const rows = data.items.filter((i) => selectable(i) && !i.ignored);
+    selectEl.hidden = !data.items.some(selectable) && !picked.size;
     if (selectEl.hidden) return;
     const onPage = rows.filter((i) => picked.has(keyOf(i))).length;
     const all = h("input", { type: "checkbox", id: "select-page", checked: rows.length > 0 && onPage === rows.length,
@@ -193,7 +194,7 @@ export function mount(container, { query, navigate }) {
     const grab = h("button", { type: "button", class: "btn btn--primary btn--sm", onclick: grabSelected }, icon("download"), picked.size ? `Grab ${number(picked.size)} selected` : "Grab selected");
     setDisabled(grab, batchRunning ? "A batch is already running. Wait for it to finish or cancel it in the sidebar." : !picked.size && "Select at least one title first");
     replace(selectEl,
-      h("label", { class: "trailer-select__all", for: "select-page" }, all, h("span", {}, "Select all on this page")),
+      h("label", { class: "trailer-select__all", for: "select-page" }, all, h("span", {}, data.items.some((i) => i.ignored) ? "Select all on this page, except ignored" : "Select all on this page")),
       h("div", { class: "trailer-select__actions" },
         picked.size ? h("span", { class: "muted", role: "status" }, `${number(picked.size)} selected${withTrailer ? ` · ${number(withTrailer)} with a trailer` : ""}`) : null,
         picked.size ? h("button", { type: "button", class: "btn btn--tertiary btn--sm", onclick: () => { picked.clear(); renderSelect(); updateRowChecks(); } }, "Clear") : null,
@@ -207,8 +208,17 @@ export function mount(container, { query, navigate }) {
     }
     const run = (replace) => () => startJob(`/items/${item.connection_id}/${item.id}/grab`, { replace }, { onDone: load });
     const manual = h("button", { type: "button", class: "btn btn--tertiary btn--sm", onclick: () => openManual(item, { onDone: load }) }, icon("link"), "Manual");
+    const ignore = async () => {
+      try {
+        await api.post(`/items/${item.connection_id}/${item.id}/ignore`, { ignored: true });
+        toast(`${item.title} ignored. Un-ignore it under Settings, Ignored.`, "success");
+        load();
+      } catch (err) { toast(err.message, "danger"); }
+    };
     return item.presence === "missing"
-      ? [manual, h("button", { type: "button", class: "btn btn--primary btn--sm", onclick: run(false) }, icon("download"), "Grab")]
+      ? [manual,
+         item.ignored ? null : h("button", { type: "button", class: "btn btn--tertiary btn--sm", onclick: ignore }, icon("ban"), "Ignore"),
+         h("button", { type: "button", class: "btn btn--primary btn--sm", onclick: run(false) }, icon("download"), "Grab")]
       : [manual,
          h("button", { type: "button", class: "btn btn--tertiary btn--sm", onclick: run(true) }, icon("download"), "Replace"),
          h("button", { type: "button", class: "btn btn--tertiary btn--sm", onclick: () => openFiles(item, { onChange: load }) }, icon("folder"), "Files")];
@@ -229,7 +239,8 @@ export function mount(container, { query, navigate }) {
         h("div", { class: "trailer-row__name" }, check(item), icon(item.type === "series" ? "tv" : "film", "icon tone-neutral"), h("span", {}, item.title)),
         h("div", { class: "trailer-row__meta" }, [item.year, item.connection_name].filter(Boolean).join(" · "))),
       h("div", { class: "trailer-row__file" }, missing
-        ? h("span", { class: "flag tone-warning" }, icon("triangle-exclamation"), "No trailer file")
+        ? (item.ignored ? h("span", { class: "flag tone-neutral" }, icon("ban"), "Ignored, no trailer wanted")
+          : h("span", { class: "flag tone-warning" }, icon("triangle-exclamation"), "No trailer file"))
         : [h("div", { class: "trailer-row__path" }, (item.primary_file || "").replace(/^trailers\//i, "")),
            h("div", { class: "trailer-row__flags" },
              item.file_count === 1 && item.total_size ? h("span", { class: "trailer-row__size" }, bytes(item.total_size)) : null,

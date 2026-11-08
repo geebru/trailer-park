@@ -34,6 +34,7 @@ HTML and CSS expert, comfortable enough in JS for design-system work, no hard to
 ## Behavior to keep
 - Missing = no trailer file under any name. File actions only touch detected trailers, never media files.
 - Replace/Force delete old files only after the new download succeeds. Renames never overwrite.
+- Ignored titles (`ignored.json`) are still missing on disk: only the Missing view and counts, batches and the watcher skip them, and the flag is dropped once a trailer exists. A manual Grab, or a hand-picked selection, still works.
 - `matches_naming` ignores the extension, so changing mkv/mp4 never flags "Name mismatch".
 - Batches: one at a time, children are normal jobs, one Discord summary.
 - The automatic trigger is the API watcher only (no webhooks).

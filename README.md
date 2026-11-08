@@ -92,7 +92,7 @@ To build from source instead, clone the repository, replace `image:` with `build
 
 ### Overview
 
-Total titles, how many have no trailer (with a **Review** link to the Missing view), coverage as a percentage, and your most recent activity. The sidebar on every page shows each service's connection state, the next sync, and any running downloads or batch.
+Total titles, how many have no trailer (with a **Review** link to the Missing view), coverage as a percentage (ignored titles are left out of both), and your most recent activity. The sidebar on every page shows each service's connection state, the next sync, and any running downloads or batch.
 
 ### Trailers
 
@@ -108,8 +108,9 @@ Changing the folder or file name settings never moves a title between Missing an
 **Missing** lists titles with no trailer file at all. Radarr movies appear once the movie file exists, Sonarr series once their series folder exists.
 
 - **Grab** lets TMDB choose the best trailer. **Manual** uses a YouTube link or ID you give it.
+- **Ignore** is for titles you do not want a trailer for (shorts, kids' shows). An ignored title leaves Missing, its count, **Grab N missing** and the automatic grabs, and shows as **Ignored** under All titles, where **Grab** and **Manual** still work. Un-ignore it under **Settings → Ignored**. Once a title has a trailer the ignore is dropped.
 - **Grab N missing** (top right) grabs every missing title in the current tab and connection filter, one after another, after a confirmation. Progress and **Cancel batch** are in the sidebar.
-- **Select** titles with the checkboxes (or **Select all on this page**; filter to Missing first to pick only those), then **Grab N selected** grabs them as one batch, with no job dialog. If the selection includes titles that already have a trailer, a confirmation asks whether to **Grab missing only** or **Grab all**, which replaces those trailers (the old files are deleted once the new download succeeds). The selection survives paging and is cleared when you change a filter.
+- **Select** titles with the checkboxes (or **Select all on this page**; filter to Missing first to pick only those), then **Grab N selected** grabs them as one batch, with no job dialog. If the selection includes titles that already have a trailer, a confirmation asks whether to **Grab missing only** or **Grab all**, which replaces those trailers (the old files are deleted once the new download succeeds). Select all skips ignored titles; one you tick by hand is still grabbed, as are unmonitored ones. The selection survives paging and is cleared when you change a filter.
 
 **Available** lists titles that have a trailer, marked **Name mismatch** (the file does not match your naming template) and/or **Multiple found** (several trailer files; allowed, not an error).
 
@@ -125,13 +126,13 @@ A download opens a live log with progress. **Run in background** closes it witho
 
 ### Activity
 
-A paged log of what happened: trailers downloaded (including manual ones), no suitable match found, failed downloads, renames, removed files, batches finished or cancelled, yt-dlp updates, maintenance, and one entry per connection each time you press **Sync now** (so a check that found nothing, or failed, is still visible; the scheduled checks are not logged). Entries older than the retention period are removed automatically.
+A paged log of what happened: trailers downloaded (including manual ones), no suitable match found, failed downloads, renames, removed files, ignored and un-ignored titles, batches finished or cancelled, yt-dlp updates, maintenance, and one entry per connection each time you press **Sync now** (so a check that found nothing, or failed, is still visible; the scheduled checks are not logged). Entries older than the retention period are removed automatically.
 
 ---
 
 ## Settings
 
-Settings are saved with **Save changes** (or **Discard**). Connections are saved as you add them.
+Settings are saved with **Save changes** (or **Discard**). Connections are saved as you add them. The sections are grouped under **Setup** (how the app is configured) and **Library** (what you have decided about your titles, currently **Ignored**). Un-ignoring applies at once.
 
 | Section | What it controls |
 |---|---|
@@ -142,6 +143,7 @@ Settings are saved with **Save changes** (or **Discard**). Connections are saved
 | **Downloads** | yt-dlp version and updates, and whether the [cookies file](#yt-dlp) is in use. **Resolution** (maximum: 480p, 720p, **1080p**, 4K), **Output container** (**mkv** or mp4; mp4 prefers H.264 so files play on more devices) and **Concurrent downloads** (**1** to 4). Changes only affect new downloads. |
 | **Automation** | **Sync interval** (Off, **5**, 10, 15, 30 minutes, 1, 6 or 24 hours) with the **Next sync** time and **Sync now**, **Only grab monitored titles** (off by default), and **Activity retention** (60, **90** or 180 days, 1 year, or forever). |
 | **Notifications** | An optional Discord webhook URL (only `https://discord.com/api/webhooks/...` addresses are accepted) with **Send test** (a successful test saves it), and toggles for **Trailer downloaded** and **Grab failed** (both on by default). Batches and Sync now send one summary instead of one message per title. |
+| **Ignored** | The titles you chose to ignore, each with **Un-ignore**. |
 
 **Automatic grabs** come from a watcher that polls each connection's API at the sync interval (Off turns automatic grabs off). Radarr grabs on import and upgrade. Sonarr grabs when a series is added, and if its folder does not exist yet it waits (up to 30 days). The first check of a connection only records a baseline, so use **Grab N missing** for titles that were already there. **Sync now** runs a check immediately. Existing trailers are kept on upgrades and on later episode imports. With **Only grab monitored titles** on, the watcher and **Grab N missing** skip titles that Radarr or Sonarr has unmonitored; they stay in Trailers and can still be grabbed one at a time or by selecting them.
 
@@ -233,6 +235,7 @@ The `/config` volume holds the app's state. Do not commit it to a public reposit
 | `activity.jsonl` | The Activity log |
 | `trailers.json` | Metadata for trailers Trailer Park downloaded |
 | `watch-state.json` | What the watcher has already seen |
+| `ignored.json` | Titles you ignored, so they are not counted as missing |
 | `ytdlp-status.json` | The last yt-dlp update check |
 | `bin/yt-dlp` | The updated yt-dlp copy, only after an in-app update |
 | `cookies.txt` | Optional YouTube cookies for yt-dlp (you add it; see [yt-dlp](#yt-dlp)) |
