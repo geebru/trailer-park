@@ -89,6 +89,6 @@ Commits (no need to ask), Conventional Commits `type(scope): subject`:
 - Scope is the area, lowercase (`nav`, `sidebar`, `services`, `activity`, `jobs`, `settings`, `trailers`, `api`, `engine`). Omit it for repo-wide changes.
 - Subject is imperative, lowercase, no period, under 72 characters. The body says why. Footer `Resolves #N` (finishes the issue) or `Refs #N` (part of it).
 - One logical commit per working change: each commit leaves the app working. No unrelated edits or formatting churn.
-- Commits are GPG-signed. If signing fails or waits on a passphrase, stop and tell the owner. Never use `--no-verify` or `--no-gpg-sign`.
+- Commits are unsigned (`commit.gpgsign` is off); GitHub signs the squash commit when the owner merges. Never use `--no-verify`.
 
 Never: merge a PR (`gh pr merge`), close an issue by hand, push to `main`, force-push, rewrite pushed history, or commit secrets or media. A new dependency is fine when the platform has no native answer: say why in the PR. Anything outside the issue's scope is a separate issue, not a rider.
