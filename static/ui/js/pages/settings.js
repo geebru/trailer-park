@@ -54,6 +54,16 @@ function toggle(label, description, on, onChange) {
     h("span", { class: "switch__track" }, knob));
   return el;
 }
+// A toggle laid out like a dropdown field: a control-height row (title, switch) with the description under it.
+function switchField(title, description, on, onChange) {
+  const id = `f${++uid}`;
+  let state = on;
+  const el = h("button", { type: "button", role: "switch", id, "aria-checked": String(state), "aria-describedby": `${id}-hint`, class: "switch switch--control",
+    onclick: () => { state = !state; el.setAttribute("aria-checked", String(state)); onChange(state); } },
+    h("span", { class: "switch__label" }, title),
+    h("span", { class: "switch__track" }, h("span", { class: "switch__knob" })));
+  return h("div", { class: "field" }, el, h("p", { class: "hint", id: `${id}-hint` }, description));
+}
 const btn = (cls, label, onclick, ic, extra = {}) => h("button", { type: "button", class: `btn ${cls}`, onclick, ...extra }, ic ? icon(ic) : null, label);
 const card = (...kids) => h("div", { class: "card" }, kids);
 
@@ -319,8 +329,8 @@ export function mount(container, { query, navigate }) {
   function automation() {
     const iv = selectInput(INTERVALS, draft.watch_interval_minutes, (v) => setDraft("watch_interval_minutes", v));
     const rt = selectInput(RETENTION, draft.activity_retention_days, (v) => setDraft("activity_retention_days", v));
-    const nextEl = h("div", { class: "mono card__big" });
-    const syncBtn = btn("btn--secondary", "Sync now", async () => {
+    const nextEl = h("span", { class: "mono field__value" });
+    const syncBtn = btn("btn--secondary btn--sm", "Sync now", async () => {
       setDisabled(syncBtn, "Starting a sync…");
       try { await api.post("/watcher/run", {}); toast("Sync started.", "info"); store.set("overview", await api.get("/overview")); }
       catch (e) { toast(e.message, "danger"); }
@@ -334,10 +344,13 @@ export function mount(container, { query, navigate }) {
     paintNext();
     nextTimer = setInterval(paintNext, 1000);
     return h("div", { class: "stack" },
-      h("div", { class: "grid2" }, field("Sync interval", "How often to check every connection", iv.el, iv.id), field("Activity retention", "Older entries are removed automatically", rt.el, rt.id)),
-      toggle("Only grab monitored titles", "The sync and Grab missing skip titles that Radarr or Sonarr has unmonitored. They stay in Trailers, and you can still grab them one at a time.", draft.only_monitored === "on", (v) => setDraft("only_monitored", v ? "on" : "off")),
-      card(h("div", { class: "split" }, h("div", {}, h("div", { class: "label" }, "Next sync"), nextEl), syncBtn)),
-      h("p", { class: "hint" }, "A sync is a lightweight check for added or changed titles. Trailer searches and downloads only run when something relevant changed."));
+      h("div", { class: "grid2" },
+        field("Sync interval", "How often to check every connection", iv.el, iv.id),
+        h("div", { class: "field" }, h("span", { class: "label", id: "next-sync-label" }, "Next sync"),
+          h("div", { class: "field__row", role: "group", "aria-labelledby": "next-sync-label" }, nextEl, syncBtn))),
+      h("p", { class: "hint" }, "A sync is a lightweight check for added or changed titles. Trailer searches and downloads only run when something relevant changed."),
+      switchField("Only grab monitored titles", "The sync and Grab missing skip titles that Radarr or Sonarr has unmonitored. They stay in Trailers, and you can still grab them one at a time.", draft.only_monitored === "on", (v) => setDraft("only_monitored", v ? "on" : "off")),
+      h("div", { class: "grid2" }, field("Activity retention", "Older entries are removed automatically", rt.el, rt.id)));
   }
   function nextIn(iso) {
     const s = Math.round((Date.parse(iso || "") - Date.now()) / 1000);

@@ -802,6 +802,20 @@
   color: var(--text-muted);
 }
 
+/* A read-out beside an action, as tall as the neighbouring controls (Next sync + Sync now). */
+.field__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--control-h);
+}
+
+.field__value {
+  font-size: var(--text-sm);
+  color: var(--text-strong);
+}
+
 .input--full,
 .select--full {
   width: 100%;
@@ -873,12 +887,6 @@
   color: var(--text);
 }
 
-.card__big {
-  margin-top: 0.25rem;
-  font-size: var(--text-xl, 1.25rem);
-  color: var(--text-strong);
-}
-
 .preview {
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--line);
@@ -918,6 +926,13 @@
 
 .switch:hover {
   border-color: var(--line-control);
+}
+
+/* A switch drawn like a .select: same height, border and padding. */
+.switch--control {
+  height: var(--control-h);
+  padding: 0 var(--space-3);
+  border-color: var(--line-strong);
 }
 
 .switch__label {
