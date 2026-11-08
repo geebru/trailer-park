@@ -41,7 +41,7 @@ HTML and CSS expert, comfortable enough in JS for design-system work, no hard to
 
 ## Checking changes
 - Python: `python -m py_compile engine.py api.py app.py jobs.py library_cache.py`, then exercise endpoints with Flask's test client or the dev stack. `engine.py` imports `fcntl`, so it only runs in Docker/Linux, not natively on Windows.
-- Front end: load the page in the browser pane and check the console. Scan every page the change touches with the vendored axe-core at 1280 px and 390 px, following `dev/axe/README.md` (serve `dev/axe` on port 8090, paste `dev/axe/scan.js`). Do not download another copy of axe-core or any other script without asking the owner. Any violation is yours to explain or fix.
+- Front end: load the page in the browser pane and check the console. Scan every page the change touches with the vendored axe-core at 1280 px and 390 px, following `dev/axe/README.md` (paste `dev/axe/scan.js`; the dev stack serves axe). Do not download another copy of axe-core or any other script without asking the owner. Any violation is yours to explain or fix.
 - Dev stack, from the checkout you are working in: `python dev/stack.py up|status|down` (creates settings and fake media if missing, picks a free port from 8100 and a name unique to this checkout; details in `dev/README.md`). Restart the app container after Python edits (`docker restart <name>`, name from `status`); refresh the browser after template/static edits. The owner's stack may run on 8080: only ever stop or remove containers you started.
 - Do not leave test fixtures in `dev/media`; reset with `dev/make_media.py --reset`.
 
