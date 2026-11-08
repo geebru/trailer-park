@@ -521,6 +521,21 @@
   margin-top: var(--space-2);
 }
 
+.disclosure summary {
+  width: fit-content;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+.disclosure summary:hover {
+  color: var(--text-strong);
+}
+
+.disclosure__body {
+  margin-top: var(--space-2);
+}
+
 .group {
   display: flex;
   flex-direction: column;

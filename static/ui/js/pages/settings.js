@@ -247,15 +247,17 @@ export function mount(container, { query, navigate }) {
     h("div", {}, h("h3", { class: "group__title" }, heading), blurb ? h("p", { class: "hint" }, blurb) : null), ...kids);
   function seasonFallback() {
     const sel = selectInput(SEASON_FALLBACK, draft.season_fallback, (v) => setDraft("season_fallback", v));
-    const help = h("div", { class: "hint", id: `${sel.id}-help` },
-      h("p", {}, "Used only when a show has no show-level trailer on TMDB. ", h("strong", {}, "First season"), " tries season 1, then season 2. ",
-        h("strong", {}, "Latest season"), " tries the newest season, the one before it, then season 1. At most three lookups; specials are skipped."),
-      h("p", {}, "Show-level trailers that mention a later season (“Season 8”, “Final Season”) are ranked last, but still used if nothing else exists."),
-      h("p", {}, "The keywords ", h("span", { class: "mono" }, "season 1"), " and ", h("span", { class: "mono" }, "season 01"),
-        " are positive keywords by default and add score. Existing installs keep their saved keywords."));
-    const wrap = field("TV season fallback", null, sel.el, sel.id);
-    sel.el.setAttribute("aria-describedby", help.id);
-    return h("div", { class: "stack stack--tight" }, h("div", { class: "narrow" }, wrap), help);
+    // The one-line hint stays visible (and describes the select); the detail folds away.
+    const more = h("details", { class: "disclosure hint" },
+      h("summary", {}, "How the fallback works"),
+      h("div", { class: "disclosure__body" },
+        h("p", {}, h("strong", {}, "First season"), " tries season 1, then season 2. ",
+          h("strong", {}, "Latest season"), " tries the newest season, the one before it, then season 1. At most three lookups; specials are skipped."),
+        h("p", {}, "Show-level trailers that mention a later season (“Season 8”, “Final Season”) are ranked last, but still used if nothing else exists."),
+        h("p", {}, "The keywords ", h("span", { class: "mono" }, "season 1"), " and ", h("span", { class: "mono" }, "season 01"),
+          " are positive keywords by default and add score. Existing installs keep their saved keywords.")));
+    return h("div", { class: "stack stack--tight" }, h("div", { class: "narrow" },
+      field("TV season fallback", "Used only when a show has no show-level trailer on TMDB.", sel.el, sel.id)), more);
   }
   function behavior() {
     return h("div", { class: "stack stack--loose" },
