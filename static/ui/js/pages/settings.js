@@ -10,15 +10,17 @@ import { pageHeading, notice } from "./common.js";
 
 export const title = "Settings";
 
+// "Setup" is how the app is configured; "Library" is what you have decided about your titles.
+const GROUPS = [["setup", "Setup"], ["library", "Library"]];
 const SECTIONS = [
-  { id: "connections", label: "Connections", icon: "link", blurb: "Connect any number of Radarr and Sonarr services." },
-  { id: "ignored", label: "Ignored", icon: "ban", blurb: "Titles you don't want a trailer for. They are left out of Missing, Grab missing and automatic grabs." },
-  { id: "naming", label: "Naming", icon: "folder", blurb: "Choose where trailers live and how downloaded files are named." },
-  { id: "behavior", label: "Behavior", icon: "sliders", blurb: "How trailers are matched and what happens when TMDB has nothing suitable." },
-  { id: "tmdb", label: "TMDB", icon: "key", blurb: "Credentials used to find trailers for each title." },
-  { id: "ytdlp", label: "Downloads", icon: "terminal", blurb: "Video quality, file type, and the yt-dlp downloader." },
-  { id: "automation", label: "Automation", icon: "arrows-rotate", blurb: "How often connected services sync and how long activity is kept." },
-  { id: "notifications", label: "Notifications", icon: "bell", blurb: "Send download results to a Discord webhook." },
+  { group: "setup", id: "connections", label: "Connections", icon: "link", blurb: "Connect any number of Radarr and Sonarr services." },
+  { group: "setup", id: "naming", label: "Naming", icon: "folder", blurb: "Choose where trailers live and how downloaded files are named." },
+  { group: "setup", id: "behavior", label: "Behavior", icon: "sliders", blurb: "How trailers are matched and what happens when TMDB has nothing suitable." },
+  { group: "setup", id: "tmdb", label: "TMDB", icon: "key", blurb: "Credentials used to find trailers for each title." },
+  { group: "setup", id: "ytdlp", label: "Downloads", icon: "terminal", blurb: "Video quality, file type, and the yt-dlp downloader." },
+  { group: "setup", id: "automation", label: "Automation", icon: "arrows-rotate", blurb: "How often connected services sync and how long activity is kept." },
+  { group: "setup", id: "notifications", label: "Notifications", icon: "bell", blurb: "Send download results to a Discord webhook." },
+  { group: "library", id: "ignored", label: "Ignored", icon: "ban", blurb: "Titles you don't want a trailer for. They are left out of Missing, Grab missing and automatic grabs." },
 ];
 const SECRET_KEYS = ["tmdb_api_key", "discord_webhook_url"];
 const INTERVALS = [[0, "Off"], [5, "5 minutes"], [10, "10 minutes"], [15, "15 minutes"], [30, "30 minutes"], [60, "1 hour"], [360, "6 hours"], [1440, "24 hours"]];
@@ -87,9 +89,11 @@ export function mount(container, { query, navigate }) {
 
   /* nav + frame */
   function paintNav() {
-    replace(navEl, SECTIONS.map((s) => h("a", { class: "settings-nav__item", href: `/settings?section=${s.id}`, "aria-current": s.id === section ? "page" : null,
-      onclick: (e) => { e.preventDefault(); section = s.id; history.replaceState({}, "", `/settings?section=${s.id}`); paintSection(); container.querySelector(`[aria-current="page"]`)?.focus(); } },
-      icon(s.icon), s.label)));
+    replace(navEl, GROUPS.map(([id, label]) => h("div", { class: "settings-nav__group", role: "group", "aria-labelledby": `settings-nav-${id}` },
+      h("span", { class: "settings-nav__label", id: `settings-nav-${id}` }, label),
+      SECTIONS.filter((s) => s.group === id).map((s) => h("a", { class: "settings-nav__item", href: `/settings?section=${s.id}`, "aria-current": s.id === section ? "page" : null,
+        onclick: (e) => { e.preventDefault(); section = s.id; history.replaceState({}, "", `/settings?section=${s.id}`); paintSection(); container.querySelector(`[aria-current="page"]`)?.focus(); } },
+        icon(s.icon), s.label)))));
     navEl.querySelector('[aria-current="page"]')?.scrollIntoView({ inline: "nearest", block: "nearest" });
   }
   let saveMsg = "";
@@ -125,6 +129,7 @@ export function mount(container, { query, navigate }) {
     paintNav();
     replace(headEl, h("div", {}, h("h2", { id: "settings-title", class: "panel__title" }, def.label), h("p", { class: "settings__blurb" }, def.blurb)));
     clearInterval(nextTimer);
+    bodyEl.classList.toggle("settings__body--flush", section === "ignored");
     replace(bodyEl, ({ connections, ignored, naming, behavior, tmdb, ytdlp: downloads, automation, notifications }[section])());
     paintFoot();
   }
@@ -202,14 +207,14 @@ export function mount(container, { query, navigate }) {
 
   /* ── Ignored ─────────────────────────────────────────────────────── */
   function ignored() {
-    const list = h("div", { class: "stack" }, h("p", { class: "muted" }, "Loading…"));
-    const render = (items) => replace(list, items.length ? items.map((i) => ignoredCard(i, items, render))
-      : h("p", { class: "muted" }, "Nothing is ignored. Use Ignore on a title in Missing to leave it out."));
+    const list = h("ul", { class: "ignored-list" }, h("li", { class: "ignored-empty" }, "Loading…"));
+    const render = (items) => replace(list, items.length ? items.map((i) => ignoredRow(i, items, render))
+      : h("li", { class: "ignored-empty" }, "Nothing is ignored. Use Ignore on a title in Missing to leave it out."));
     api.get("/ignored").then((r) => { if (!stopped && section === "ignored") render(r.items); })
-      .catch((e) => replace(list, notice("danger", e.message)));
-    return list;
+      .catch((e) => replace(list, h("li", { class: "ignored-empty" }, notice("danger", e.message))));
+    return h("div", {}, h("div", { class: "ignored-head", "aria-hidden": "true" }, h("span", {}, "Title"), h("span", {}, "Actions")), list);
   }
-  function ignoredCard(item, items, render) {
+  function ignoredRow(item, items, render) {
     const label = [item.title, item.year].filter(Boolean).join(" ");
     const undo = btn("btn--tertiary btn--sm", "Un-ignore", async () => {
       setDisabled(undo, "Working…");
@@ -220,10 +225,11 @@ export function mount(container, { query, navigate }) {
         store.set("overview", await api.get("/overview"));
       } catch (e) { toast(e.message, "danger"); setDisabled(undo, null); }
     }, "xmark", { "aria-label": `Un-ignore ${label}` });
-    return card(h("div", { class: "split" },
-      h("div", { class: "row-gap" }, h("div", { class: "file__icon" }, icon(item.type === "series" ? "tv" : "film")),
-        h("div", {}, h("div", { class: "card__title" }, label), h("div", { class: "hint" }, item.connection_name))),
-      undo));
+    return h("li", { class: "ignored-row" },
+      h("div", {},
+        h("div", { class: "trailer-row__name" }, icon(item.type === "series" ? "tv" : "film", "icon tone-neutral"), h("span", {}, item.title)),
+        h("div", { class: "trailer-row__meta" }, [item.year, item.connection_name].filter(Boolean).join(" · "))),
+      undo);
   }
 
   /* ── Naming ──────────────────────────────────────────────────────── */
