@@ -116,7 +116,7 @@ Changing the folder or file name settings never moves a title between Missing an
 - **Files** opens per-file **Rename** (to the current naming, keeps the extension, never overwrites), **Keep only this** (deletes the others) and **Delete**.
 - **Rename N** (top right) renames every flagged single-file title in the current tab and connection. A dry run shows what is ready or blocked first, and titles with several files are skipped.
 
-Trailer Park stores metadata for trailers it downloads (TMDB video name, YouTube ID, score, time, source). Renames keep that metadata. Trailers it did not download show as **Found on disk**.
+Trailer Park stores metadata for trailers it downloads (TMDB video name, YouTube ID, language, score, time, source). Renames keep that metadata. Trailers it did not download show as **Found on disk**.
 
 A download opens a live log with progress. **Run in background** closes it without stopping anything; **Cancel** stops the download and removes partial files.
 
