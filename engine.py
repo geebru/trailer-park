@@ -12,6 +12,7 @@ import datetime as dt
 import fcntl
 import glob
 import hashlib
+import ipaddress
 import json
 import logging
 import os
@@ -510,6 +511,61 @@ def url_origin(url):
     except ValueError:
         return None
     return (parts.scheme.lower(), (parts.hostname or "").lower(), port)
+
+
+# ── Host header allowlist (DNS rebinding) ─────────────────────────────────
+# With no login, a web page on another site could point its own domain at this app and make the
+# browser treat /api as same-origin. The browser still sends that domain as the Host header, so
+# names we did not expect are refused. By default that is anything but: localhost, IP addresses
+# (a browser cannot rebind one), single-label names such as "gaming-pc" (cannot be a public domain)
+# and the LAN-only suffixes below. ALLOWED_HOSTS adds more.
+
+LAN_HOST_SUFFIXES = (".local", ".lan", ".home.arpa")
+_HOSTNAME = re.compile(r"^[a-z0-9_-]+(\.[a-z0-9_-]+)*$")
+
+
+def parse_allowed_hosts(value):
+    """ALLOWED_HOSTS: comma separated names, each exact or "*.example.com". Lower-cased."""
+    return tuple(h.strip().lower() for h in str(value or "").split(",") if h.strip())
+
+
+ALLOWED_HOSTS = parse_allowed_hosts(os.environ.get("ALLOWED_HOSTS", ""))
+
+
+def host_name(host_header):
+    """The host name in a Host header: lower-case, no port, no IPv6 brackets, no trailing dot.
+    "" if it makes no sense."""
+    host = str(host_header or "").strip().lower()
+    if host.startswith("["):                                  # "[::1]:8080"
+        name, bracket, rest = host[1:].partition("]")
+        return name if bracket and (rest == "" or re.fullmatch(r":\d+", rest)) else ""
+    name, sep, port = host.partition(":")                     # names and IPv4 hold one colon at most
+    if sep and not port.isdigit():
+        return ""
+    return name.rstrip(".")
+
+
+def host_allowed(host_header, extra=None):
+    """True if a request with this Host header may be served."""
+    name = host_name(host_header)
+    if not name:
+        return False
+    try:
+        ipaddress.ip_address(name)
+        return True
+    except ValueError:
+        pass
+    if not _HOSTNAME.match(name):
+        return False
+    if name == "localhost" or "." not in name or name.endswith(LAN_HOST_SUFFIXES):
+        return True
+    for allowed in (ALLOWED_HOSTS if extra is None else extra):
+        if allowed.startswith("*."):
+            if name.endswith(allowed[1:]):                    # "*.example.com" is not "example.com"
+                return True
+        elif name == allowed:
+            return True
+    return False
 
 
 def validate_connections(connections, existing_connections=None):

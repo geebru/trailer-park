@@ -28,6 +28,7 @@ HTML and CSS expert, comfortable enough in JS for design-system work, no hard to
 - Mutating requests need `Content-Type: application/json` (else 415). Errors: `{"error":{"code","message"}}`.
 - Long actions return 202 `{"job":{...}}`; poll `GET /api/jobs/<id>?after=<seq>`. One active job per item (409 `job_active`).
 - Items are addressed `/api/items/<connection_id>/<item_id>`. No library IDs; each connection is one synthetic library.
+- A request whose `Host` header is not an expected name gets 421 (`host_allowed` in `engine.py`, hooked in `app.py`; `/health` is exempt). Defaults cover `localhost`, IPs, single-label and `.local`/`.lan`/`.home.arpa` names; `ALLOWED_HOSTS` adds more. Do not trust `X-Forwarded-Host`.
 - Secrets (TMDB key, Discord webhook) are never returned, only `configured` flags. Settings PUT is partial; `clear_<key>: true` clears a secret. A blank Arr `api_key` keeps the saved one only while the URL points to the same server (scheme, host, port); otherwise it is a 400.
 
 ## Behavior to keep
