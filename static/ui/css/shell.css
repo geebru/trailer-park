@@ -51,6 +51,10 @@ body.menu-open {
   margin: 0 auto;
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--line);
+  /* Actions sit at the right edge, in the order they are added. */
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-1);
 }
 
 @media (min-width: 40rem) {
@@ -65,10 +69,14 @@ body.menu-open {
   justify-content: center;
   width: 2.5rem;
   height: 2.5rem;
-  margin-inline-start: -0.625rem; /* half the 1.25rem difference between hit area and icon: the icon lines up with the page content */
   border-radius: var(--radius-md);
   color: var(--text-muted);
   transition: background-color var(--ease), color var(--ease);
+}
+
+/* Half the 1.25rem difference between hit area and icon: the last icon lines up with the right edge of the page content. */
+.footer__link:last-child {
+  margin-inline-end: -0.625rem;
 }
 
 .footer__link:hover {
