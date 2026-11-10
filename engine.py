@@ -3776,6 +3776,11 @@ def record_sync(connection, conn_state, detail, status="success"):
     })
 
 
+# Set by library_cache.start(): called with (connection_id, item_id) after the watcher
+# changed an item's trailer files, so the cached snapshot is not left stale.
+on_item_changed = None
+
+
 def watch_connection(connection, state, manual=False):
     connection_id = connection.get("id")
     conn_state = state.setdefault(connection_id, {})
@@ -3824,6 +3829,11 @@ def watch_connection(connection, state, manual=False):
         except Exception as e:
             log.error(f"Watcher grab failed for {item.get('title')}: {e}")
             status = "error"
+        if status == "downloaded" and on_item_changed:
+            try:
+                on_item_changed(connection_id, item["id"])
+            except Exception as e:      # noqa: BLE001 - a stale row must not stop the watcher
+                log.warning(f"Watcher: cache refresh failed for {item.get('title')}: {e}")
         conn_state["last_trigger"] = {
             "time": utc_now(),
             "event": reason,
