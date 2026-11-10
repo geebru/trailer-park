@@ -1,6 +1,6 @@
 import { h } from "./dom.js";
 import { defineRoutes, startRouter } from "./router.js";
-import { buildShell, setActiveRoute, startPolling, closeMenu } from "./shell.js";
+import { buildShell, buildFooter, setActiveRoute, startPolling, closeMenu } from "./shell.js";
 import { initTips } from "./tip.js";
 
 initTips();
@@ -8,7 +8,7 @@ const root = document.getElementById("shell");
 buildShell(root);
 
 const main = h("main", { id: "main", class: "main", tabindex: "-1" });
-root.append(main);
+root.append(main, buildFooter());
 
 defineRoutes([
   { name: "overview", paths: ["/"], load: () => import("./pages/overview.js") },
