@@ -5,7 +5,7 @@ Downloads local trailers for your Radarr and Sonarr titles. It looks each title 
 > [!IMPORTANT]
 > **Built with AI.** Trailer Park is developed with heavy AI assistance. A human plans the work, reviews the changes and oversees the result, but much of the code and documentation is written by AI. If something looks wrong, please open an issue.
 
-Current release: **v0.11.0** <!-- x-release-please-version -->
+Current release: **v0.12.0** <!-- x-release-please-version -->
 
 [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [License](LICENSE)
 

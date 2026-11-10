@@ -1,5 +1,22 @@
 # Trailer Park — Changelog
 
+## [0.12.0](https://github.com/geebru/trailer-park/compare/v0.11.0...v0.12.0) (2026-11-10)
+
+
+### ✨ Features
+
+* **shell:** add footer with a link to GitHub ([#93](https://github.com/geebru/trailer-park/issues/93)) ([0779867](https://github.com/geebru/trailer-park/commit/0779867e1fdefc67dbbf80c19aa0d28ebe03fde0))
+
+
+### 🐛 Bug fixes
+
+* **engine:** refresh the cached title after a watcher download ([#92](https://github.com/geebru/trailer-park/issues/92)) ([f157263](https://github.com/geebru/trailer-park/commit/f15726381287f0abc1908d68b8a883e29dc3cc83)), closes [#90](https://github.com/geebru/trailer-park/issues/90)
+
+
+### 📝 Documentation
+
+* **readme:** say user: must match the owner of the media ([#79](https://github.com/geebru/trailer-park/issues/79)) ([0f1f76e](https://github.com/geebru/trailer-park/commit/0f1f76e4c87565cfc62fece7c74e687f2b65674b))
+
 ## [0.11.0](https://github.com/geebru/trailer-park/compare/v0.10.0...v0.11.0) (2026-11-08)
 
 
