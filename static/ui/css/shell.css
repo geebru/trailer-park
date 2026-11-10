@@ -34,9 +34,59 @@ body.menu-open {
   overflow: hidden;
 }
 
-.main {
+/* Column so the footer sits at the bottom of a short page and after the content on a long one. */
+#shell {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
+}
+
+.main {
+  flex: 1;
   outline: none;
+}
+
+.footer__inner {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+  /* Actions sit at the right edge, in the order they are added. */
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+@media (min-width: 40rem) {
+  .footer__inner {
+    padding-inline: 1.75rem;
+  }
+}
+
+.footer__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  transition: background-color var(--ease), color var(--ease);
+}
+
+/* Half the 1.25rem difference between hit area and icon: the last icon lines up with the right edge of the page content. */
+.footer__link:last-child {
+  margin-inline-end: -0.625rem;
+}
+
+.footer__link:hover {
+  background: var(--surface);
+  color: var(--text-strong);
+}
+
+.footer__icon {
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 .brand {

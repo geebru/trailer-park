@@ -185,6 +185,17 @@ export function buildShell(root) {
   setInterval(() => renderServices(store.get("overview")), 30000);
 }
 
+const REPO_URL = "https://github.com/geebru/trailer-park";
+
+/** Footer of the content area. Icon-only links; room for docs or a microsite later. */
+export function buildFooter() {
+  const label = "Trailer Park on GitHub (opens in a new tab)";
+  return h("footer", { class: "footer" },
+    h("div", { class: "footer__inner" },
+      h("a", { class: "footer__link", href: REPO_URL, target: "_blank", rel: "noopener noreferrer", "aria-label": label, title: "GitHub" },
+        icon("github", "icon footer__icon"))));
+}
+
 export function startPolling() {
   const overview = poll(async () => store.set("overview", await api.get("/overview")), () => 15000);
   const jobs = poll(async () => {

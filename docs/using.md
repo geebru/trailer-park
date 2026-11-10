@@ -4,7 +4,7 @@
 
 ## Overview
 
-Total titles, how many have no trailer (with a **Review** link to the Missing view), coverage as a percentage (ignored titles are left out of both), and your most recent activity. The sidebar on every page shows each service's connection state, the next sync, and any running downloads or batch.
+Total titles, how many have no trailer (with a **Review** link to the Missing view), coverage as a percentage (ignored titles are left out of both), and your most recent activity. The sidebar on every page shows each service's connection state, the next sync, and any running downloads or batch. The footer at the bottom of every page has an icon link to the project on GitHub.
 
 ## Trailers
 
