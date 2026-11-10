@@ -135,6 +135,15 @@ def _reusable(old, raw, naming_sig, full):
     )
 
 
+def _keep_refreshed(st, began, new_items):
+    """A refresh_item() that landed while this scan was running holds newer data than the
+    scan may have read (a trailer downloaded meanwhile). Keep it. Call with _lock held."""
+    for item_id, snap in st["items"].items():
+        mine = new_items.get(item_id)
+        if mine is not None and snap["_scanned_at"] >= began and snap["_scanned_at"] > mine["_scanned_at"]:
+            new_items[item_id] = snap
+
+
 def _refresh_connection(connection):
     cid = connection["id"]
     with _lock:
@@ -164,6 +173,7 @@ def _refresh_connection(connection):
         full = True
     total = len(raw_items)
     new_items = {}
+    began = time.monotonic()
     with _lock:
         st["scan"] = {"state": "scanning", "done": 0, "total": total}
         st["roots"] = roots
@@ -177,12 +187,14 @@ def _refresh_connection(connection):
             new_items[raw["id"]] = snap
         if n % PUBLISH_EVERY == 0:
             with _lock:
+                _keep_refreshed(st, began, new_items)
                 st["items"] = dict(new_items)
                 st["scan"] = {"state": "scanning", "done": n, "total": total}
 
     with _lock:
         if _conns.get(cid) is not st:
             return
+        _keep_refreshed(st, began, new_items)
         st["items"] = new_items                # copy-on-write: whole dict replaced at once
         st["naming_sig"] = naming_sig
         st["arr_at"] = time.monotonic()
@@ -291,6 +303,7 @@ def start():
         if _started:
             return
         _started = True
+    E.on_item_changed = refresh_item
     threading.Thread(target=_worker, name="library-cache", daemon=True).start()
     threading.Thread(target=_health_worker, name="library-health", daemon=True).start()
 
